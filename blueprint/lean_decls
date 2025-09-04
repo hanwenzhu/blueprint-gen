@@ -1,0 +1,8 @@
+MyNat
+MyNat.add
+MyNat.zero_add
+MyNat.succ_add
+MyNat.add_comm
+MyNat.mul
+MyNat.mul_comm
+MyNat.flt
