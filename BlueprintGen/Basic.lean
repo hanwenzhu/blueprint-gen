@@ -6,6 +6,8 @@ open Lean Elab
 
 namespace BlueprintGen
 
+initialize registerTraceClass `blueprint
+
 /-- The statement or proof of a node. -/
 structure NodePart where
   /-- Whether the part is formalized without `sorry` in Lean. -/
@@ -16,7 +18,7 @@ structure NodePart where
   uses : Array Name
   /-- The LaTeX environment to use for this part. -/
   latexEnv : String
-deriving Inhabited, Repr, ToJson, ToExpr
+deriving Inhabited, Repr, FromJson, ToJson, ToExpr
 
 /-- A theorem or definition in the blueprint graph. -/
 structure Node where
@@ -32,9 +34,32 @@ structure Node where
   discussion : Option Nat
   /-- The short title of the node in LaTeX. -/
   title : Option String
-deriving Inhabited, Repr, ToExpr
+deriving Inhabited, Repr, FromJson, ToJson, ToExpr
 
-initialize registerTraceClass `blueprint
+structure NodeWithPos extends Node where
+  /--
+  Whether the node name is in the environment.
+  This should always be true for nodes e.g. added by `@[blueprint]`.
+  -/
+  hasLean : Bool
+  /-- The location (module & range) the node is defined in. -/
+  location : Option DeclarationLocation
+  /-- The file the node is defined in. -/
+  file : Option System.FilePath
+deriving Inhabited, Repr
+
+def Node.toNodeWithPos (node : Node) : CoreM NodeWithPos := do
+  let env ← getEnv
+  if !env.contains node.name then
+    return { node with hasLean := false, location := none, file := none }
+  let module := match env.getModuleIdxFor? node.name with
+    | some modIdx => env.allImportedModuleNames[modIdx]!
+    | none => env.header.mainModule
+  let location := match ← findDeclarationRanges? node.name with
+    | some ranges => some { module, range := ranges.range }
+    | none => none
+  let file ← (← getSrcSearchPath).findWithExt "lean" module
+  return { node with hasLean := true, location, file }
 
 /-- Environment extension that stores the nodes of the blueprint. -/
 initialize blueprintExt : NameMapExtension Node ← registerNameMapExtension _

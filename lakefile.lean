@@ -12,6 +12,10 @@ lean_exe «blueprint-gen» where
   root := `Main
   supportInterpreter := true
 
+lean_exe add_position_info where
+  root := `scripts.convert.add_position_info
+  supportInterpreter := true
+
 require «doc-gen4» from git "https://github.com/leanprover/doc-gen4" @ "v4.23.0-rc2"
 
 require batteries from git "https://github.com/leanprover-community/batteries" @ "v4.23.0-rc2"

@@ -1,4 +1,5 @@
 import BlueprintGen.Content
+import MD4Lean
 
 
 open Lean
@@ -42,20 +43,12 @@ def NodePart.toLatex (part : NodePart) (title : Option String) (additionalConten
   out := out ++ "\\end{" ++ part.latexEnv ++ "}"
   return #[.content out]
 
-def Node.toLatex (node : Node) : CoreM Latex := do
-  trace[blueprint] "Converting {repr node} to LaTeX"
-
+def NodeWithPos.toLatex (node : NodeWithPos) : CoreM Latex := do
   -- position string as annotation
-  let env ← getEnv
-  let module := match env.getModuleIdxFor? node.name with
-    | some modIdx => env.allImportedModuleNames[modIdx]!
-    | none => env.header.mainModule
-  let fileName := modToFilePath "." module "lean"
-  let declarationRange := (← findDeclarationRanges? node.name).map (·.range)
-  let rangeStr := match declarationRange with
+  let rangeStr := match node.location with
     | none => ""
-    | some range => s!":{range.pos.line}.{range.pos.column}-{range.endPos.line}.{range.endPos.column}"
-  let posStr := s!"{fileName}{rangeStr}"
+    | some location => s!":{location.range.pos.line}.{location.range.pos.column}-{location.range.endPos.line}.{location.range.endPos.column}"
+  let posStr := s!"{node.file}{rangeStr}"
 
   let mut addLatex := ""
   addLatex := addLatex ++ "\\lean{" ++ node.name.toString ++ "}"
@@ -72,6 +65,11 @@ def Node.toLatex (node : Node) : CoreM Latex := do
   | some proof =>
     let proofLatex ← proof.toLatex none ""
     return statementLatex ++ proofLatex
+
+def Node.toLatex (node : Node) : CoreM Latex := do
+  trace[blueprint] "Converting {repr node} to LaTeX"
+  let nodeWithPos ← node.toNodeWithPos
+  nodeWithPos.toLatex
 
 def BlueprintInputData.toLatex : BlueprintInputData → CoreM Latex
   | .inputLibrary lib => do
@@ -121,27 +119,29 @@ private def rangeToJson (range : DeclarationRange) : Json :=
     "endPos": $(range.endPos)
   }
 
-def Node.toJson (node : Node) : CoreM Json := do
-  trace[blueprint] "Converting {repr node} to JSON"
+private def locationToJson (location : DeclarationLocation) : Json :=
+  json% {
+    "module": $(location.module),
+    "range": $(rangeToJson location.range)
+  }
 
-  let env ← getEnv
-  let module := match env.getModuleIdxFor? node.name with
-    | some modIdx => env.allImportedModuleNames[modIdx]!
-    | none => env.header.mainModule
-  let fileName := modToFilePath "." module "lean"
-  let declarationRange := (← findDeclarationRanges? node.name).map (·.range)
-
-  return json% {
+def NodeWithPos.toJson (node : NodeWithPos) : Json :=
+  json% {
     "name": $(node.name),
     "statement": $(node.statement),
     "proof": $(node.proof),
     "notReady": $(node.notReady),
     "discussion": $(node.discussion),
     "title": $(node.title),
-    "declarationRange": $(declarationRange.map rangeToJson),
-    "module": $(module),
-    "file": $(fileName)
+    "hasLean": $(node.hasLean),
+    "file": $(node.file),
+    "location": $(node.location.map locationToJson)
   }
+
+def Node.toJson (node : Node) : CoreM Json := do
+  trace[blueprint] "Converting {repr node} to JSON"
+  let nodeWithPos ← node.toNodeWithPos
+  return nodeWithPos.toJson
 
 def BlueprintContent.toJson : BlueprintContent → CoreM Json
   | .input { data := .inputLibrary lib, .. } => return json% {"type": "inputLibrary", "data": $(lib)}
