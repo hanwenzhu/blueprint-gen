@@ -1,6 +1,8 @@
 import Lake
 open System Lake DSL
 
+def version := "v4.23.0-rc2"
+
 package «blueprint-gen»
 
 lean_lib BlueprintGen
@@ -16,11 +18,11 @@ lean_exe add_position_info where
   root := `scripts.convert.add_position_info
   supportInterpreter := true
 
-require «doc-gen4» from git "https://github.com/leanprover/doc-gen4" @ "v4.23.0-rc2"
+require «doc-gen4» from git "https://github.com/leanprover/doc-gen4" @ version
 
-require batteries from git "https://github.com/leanprover-community/batteries" @ "v4.23.0-rc2"
+require batteries from git "https://github.com/leanprover-community/batteries" @ version
 
-require Cli from git "https://github.com/mhuisi/lean4-cli" @ "v4.23.0-rc2"
+require Cli from git "https://github.com/mhuisi/lean4-cli" @ version
 
 /-- A facet to generate the blueprint for a module. -/
 module_facet blueprint (mod : Module) : Unit := do

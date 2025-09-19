@@ -156,7 +156,7 @@ initialize registerBuiltinAttribute {
         | none =>
           -- for synthetic `[blueprint]`, put at end of file
           { pos := ⟨1000000000, 0⟩, charUtf16 := 0, endPos := ⟨1000000000, 0⟩, endCharUtf16 := 0 }
-      modifyEnv fun env => addMainModuleBlueprintInput env {
+      modifyEnv fun env => addMainModuleBlueprintEntry env {
         data := .node node
         declarationRange := range
       }

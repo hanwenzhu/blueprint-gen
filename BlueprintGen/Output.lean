@@ -9,10 +9,99 @@ namespace BlueprintGen
 section ToLatex
 
 inductive LatexPart where
+  /-- \input{file} in LaTeX. -/
   | input : System.FilePath → LatexPart
+  /-- Raw LaTeX content. -/
   | content : String → LatexPart
+deriving Repr
 
 abbrev Latex := Array LatexPart
+
+/-!
+We convert docstrings of declarations and modules to LaTeX,
+by the following steps:
+
+1. If possible, we convert citations (e.g. `[taylorwiles]`) to \cite{taylorwiles} commands.
+2. Using MD4Lean, we parse the markdown.
+3. If possible, we convert inline code with a constant (e.g. `abc`) to \ref{abc} commands.
+4. We convert the markdown to LaTeX.
+
+The long-term goal for blueprint-gen is to migrate to Verso.
+Here, this would mean using docstring parsing from Verso instead
+(which similarly uses MD4Lean to parse the docstrings),
+but has support for trying to elaborate code blocks.
+However, it currently does not support citations in docstrings.
+-/
+
+/- Largely copied from `findAllReferences` in doc-gen4. -/
+/-- Find all references in a markdown text. -/
+partial def findAllReferences (refsMap : Std.HashMap String BibItem) (s : String) (i : String.Pos := 0)
+    (ret : Std.HashSet String := ∅) : Std.HashSet String :=
+  let lps := s.posOfAux '[' s.endPos i
+  if lps < s.endPos then
+    let lpe := s.posOfAux ']' s.endPos lps
+    if lpe < s.endPos then
+      let citekey := Substring.toString ⟨s, ⟨lps.1 + 1⟩, lpe⟩
+      match refsMap[citekey]? with
+      | .some _ => findAllReferences refsMap s lpe (ret.insert citekey)
+      | .none => findAllReferences refsMap s lpe ret
+    else
+      ret
+  else
+    ret
+
+def markdownToLatex (markdown : String) : CoreM Latex := do
+  match MD4Lean.parse markdown with
+  | none => return #[.content markdown]
+  | some doc => documentToLatex doc
+where
+  documentToLatex (doc : MD4Lean.Document) : CoreM Latex := do
+    return (← doc.blocks.mapM blockToLatex).map .content
+  blockToLatex (block : MD4Lean.Block) : CoreM String := do
+    match block with
+    | .p texts =>
+      return String.join (← texts.mapM textToLatex).toList
+    | .ul _tight _mark items =>
+      return "\\begin{itemize}" ++ "\n\n".intercalate (← items.mapM itemToLatex).toList ++ "\\end{itemize}"
+    | .ol _tight _start _mark items =>
+      return "\\begin{enumerate}" ++ "\n\n".intercalate (← items.mapM itemToLatex).toList ++ "\\end{enumerate}"
+    | .hr => return "\\midrule"
+    | .header level texts =>
+      let headerCommand := match level with | 1 => "section" | 2 => "subsection" | 3 => "subsubsection" | 4 => "paragraph" | _ => "subparagraph"
+      return "\\" ++ headerCommand ++ "{" ++ String.join (← texts.mapM textToLatex).toList ++ "}"
+    | .code _info _lang _fenceChar content => return "\\begin{verbatim}" ++ "\n\n".intercalate content.toList ++ "\\end{verbatim}"
+    | .html content => return String.join content.toList
+    | .blockquote content => return "\\begin{quote}" ++ "\n\n".intercalate (← content.mapM blockToLatex).toList ++ "\\end{quote}"
+    | .table _head _body => throwError "Table not supported"
+  textToLatex (text : MD4Lean.Text) : CoreM String := do
+    match text with
+    | .normal content => return content
+    | .nullchar => return ""
+    | .br content => return content
+    | .softbr content => return content
+    | .entity content => return content
+    | .em texts => return "\\emph{" ++ String.join (← texts.mapM textToLatex).toList ++ "}"
+    | .strong texts => return "\\textbf{" ++ String.join (← texts.mapM textToLatex).toList ++ "}"
+    | .u texts => return "\\ul{" ++ String.join (← texts.mapM textToLatex).toList ++ "}"
+    | .a href _title _isAuto texts => return "\\href{" ++ String.join (← href.mapM attrTextToLatex).toList ++ "}{" ++ String.join (← texts.mapM textToLatex).toList ++ "}"
+    | .img src _title _alt => return "\\includegraphics{" ++ String.join (← src.mapM attrTextToLatex).toList ++ "}"
+    | .code content => return "\\texttt{" ++ String.join content.toList ++ "}"
+    | .del texts => return "\\st{" ++ String.join (← texts.mapM textToLatex).toList ++ "}"
+    | .latexMath content => return "$" ++ String.join content.toList ++ "$"
+    | .latexMathDisplay content => return "$$" ++ String.join content.toList ++ "$$"
+    | .wikiLink target texts => return "\\href{" ++ String.join (← target.mapM attrTextToLatex).toList ++ "}{" ++ String.join (← texts.mapM textToLatex).toList ++ "}"
+  attrTextToLatex (attrText : MD4Lean.AttrText) : CoreM String := do
+    match attrText with
+    | .normal content => return content
+    | .entity content => return content
+    | .nullchar => return ""
+  itemToLatex (item : MD4Lean.Li MD4Lean.Block) : CoreM String := do
+    match item with
+    | .li _isTask _taskChar _taskMarkOffset blocks =>
+      return "\\item " ++ "\n\n".intercalate (← blocks.mapM blockToLatex).toList
+
+#eval markdownToLatex "Hello, [and]"  -- copy doc-gen / verso flags!
+
 
 def libraryToRelPath (library : Name) (ext : String) : System.FilePath :=
   System.mkFilePath ["library", library.toString (escape := false)] |>.addExtension ext
@@ -71,18 +160,18 @@ def Node.toLatex (node : Node) : CoreM Latex := do
   let nodeWithPos ← node.toNodeWithPos
   nodeWithPos.toLatex
 
-def BlueprintInputData.toLatex : BlueprintInputData → CoreM Latex
-  | .inputLibrary lib => do
+def BlueprintEntryData.toLatex : BlueprintEntryData → CoreM Latex
+  | .includeLibrary lib => do
     return #[.input (libraryToRelPath lib "tex")]
-  | .inputModule mod => do
+  | .includeModule mod => do
     return #[.input (moduleToRelPath mod "tex")]
   | .node n => n.toLatex
 
-def BlueprintInput.toLatex (i : BlueprintInput) : CoreM Latex :=
+def BlueprintEntry.toLatex (i : BlueprintEntry) : CoreM Latex :=
   i.data.toLatex
 
 def BlueprintContent.toLatex : BlueprintContent → CoreM Latex
-  | .input i => i.toLatex
+  | .entry i => i.toLatex
   | .modDoc d => pure #[.content d.doc]
 
 def moduleToLatex (module : Name) : CoreM Latex := do
@@ -144,9 +233,9 @@ def Node.toJson (node : Node) : CoreM Json := do
   return nodeWithPos.toJson
 
 def BlueprintContent.toJson : BlueprintContent → CoreM Json
-  | .input { data := .inputLibrary lib, .. } => return json% {"type": "inputLibrary", "data": $(lib)}
-  | .input { data := .inputModule mod, .. } => return json% {"type": "inputModule", "data": $(mod)}
-  | .input { data := .node node, .. } => return json% {"type": "node", "data": $(← node.toJson)}
+  | .entry { data := .includeLibrary lib, .. } => return json% {"type": "includeLibrary", "data": $(lib)}
+  | .entry { data := .includeModule mod, .. } => return json% {"type": "includeModule", "data": $(mod)}
+  | .entry { data := .node node, .. } => return json% {"type": "node", "data": $(← node.toJson)}
   | .modDoc d => return json% {"type": "moduleDoc", "data": $(d.doc)}
 
 def moduleToJson (module : Name) : CoreM Json := do

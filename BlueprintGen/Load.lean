@@ -1,25 +1,19 @@
 import BlueprintGen.Output
+import DocGen4.Load
 
 
 namespace BlueprintGen
 
 /-!
 Loading the analysis result of a module.
-
-This section is largely copied from doc-gen4's Load.lean.
 -/
 
 open Lean
 
-def envOfImports (imports : Array Name) : IO Environment := do
-  -- needed for modules which use syntax registered with `initialize add_parser_alias ..`
-  unsafe Lean.enableInitializersExecution
-  importModules (imports.map (Import.mk · false true false)) Options.empty (leakEnv := true) (loadExts := true)
-
-/-- NB: The TODOs are also copied from doc-gen4. -/
+/-- This is copied from `DocGen4.load`. -/
 def runEnvOfImports (imports : Array Name) (x : CoreM α) : IO α := do
   initSearchPath (← findSysroot)
-  let env ← envOfImports imports
+  let env ← DocGen4.envOfImports imports
   let config := {
     -- TODO: parameterize maxHeartbeats
     maxHeartbeats := 100000000,

@@ -72,7 +72,7 @@ Some features that are available:
 - Whether the statement or proof is ready (i.e. `\leanok`) is inferred from whether it is
   sorry-free.
 - You can manually insert nodes from other modules to the blueprint with the
-  `blueprint_input_node node_from_other_module` command.
+  `blueprint_include_node node_from_other_module` command.
 - For debugging, you can use the `#show_blueprint` and `#show_blueprint_json` commands.
 
 See [Example.lean](./Example.lean) for more details.
