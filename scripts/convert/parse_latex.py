@@ -51,8 +51,8 @@ def convert_ref_to_code(node: Macro):
     r"""Convert \ref{abc} to \texttt{abc}.
 
     This is so that in the output, [\[long_theorem_name\]](#long_theorem_name) becomes
-    `long_theorem_name`, and the latter can be automatically converted to links by both
-    doc-gen4 and blueprint generation.
+    `long_theorem_name`, and the latter can be automatically converted to links/refs by both
+    doc-gen4 and blueprint-gen.
     """
     from plasTeX.Base.LaTeX.FontSelection import texttt
     for child in list(node.childNodes):
@@ -176,3 +176,13 @@ def parse_dep_graph(document: TeXDocument) -> list[Node]:
                         loguru.logger.warning(f"\\uses {use.id} not found in dependency graph")
 
     return nodes
+
+
+def get_bibliography_files(document: TeXDocument) -> list[str]:
+    """Get the bibliography from the document."""
+    from plasTeX.Base.LaTeX.Bibliography import bibliography
+    bibs = []
+    for bib in document.getElementsByTagName("bibliography"):
+        bib: bibliography
+        bibs.append(Path(bib.attributes["files"]).with_suffix(".bib"))
+    return bibs

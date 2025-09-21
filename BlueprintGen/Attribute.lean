@@ -151,15 +151,6 @@ initialize registerBuiltinAttribute {
       blueprintExt.add name node
       trace[blueprint] "Blueprint node added:\n{repr node}"
 
-      let range := match ← getDeclarationRange? stx with
-        | some range => range
-        | none =>
-          -- for synthetic `[blueprint]`, put at end of file
-          { pos := ⟨1000000000, 0⟩, charUtf16 := 0, endPos := ⟨1000000000, 0⟩, endCharUtf16 := 0 }
-      modifyEnv fun env => addMainModuleBlueprintEntry env {
-        data := .node node
-        declarationRange := range
-      }
       -- pushInfoLeaf <| .ofTermInfo {
       --   elaborator := .anonymous, lctx := {}, expectedType? := none,
       --   stx, expr := mkStrLit (repr node).pretty }

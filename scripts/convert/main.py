@@ -6,7 +6,7 @@ import subprocess
 import loguru
 
 from common import Node, NodeWithPos, convert_node_latex_to_markdown
-from parse_latex import parse_blueprint_file, parse_dep_graph
+from parse_latex import parse_blueprint_file, parse_dep_graph, get_bibliography_files
 
 
 def main():
@@ -73,8 +73,25 @@ def main():
         NodeWithPos.model_validate(node) for node in json.loads(nodes_with_pos_json)
     ]
 
+    # TODO
     for node in nodes_with_pos:
         print(node)
+
+    # # Parse bibliography files
+    # loguru.logger.info("Parsing bibliography files")
+    # bib_files = get_bibliography_files(document)
+    # output_bib_file = Path("docs") / "references.bib"
+    # if output_bib_file.exists():
+    #     loguru.logger.warning(f"Removing existing bib file {output_bib_file}")
+    #     output_bib_file.unlink()
+    # else:
+    #     output_bib_file.parent.mkdir(parents=True, exist_ok=True)
+    # with open(output_bib_file, "a") as f:
+    #     for bib_file in bib_files:
+    #         bib_file = Path(blueprint_root) / bib_file
+    #         bib_text = bib_file.read_text()
+    #         f.write(bib_text + "\n")
+    # loguru.logger.info(f"Converted bibliography {bib_files} to {output_bib_file}")
 
 
 if __name__ == "__main__":

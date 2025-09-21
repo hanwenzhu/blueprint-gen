@@ -22,7 +22,7 @@ def add (a b : MyNat) : MyNat :=
   | zero => a
   | succ b => succ (add a b)
 
-/-- For any natural number $a$, $0 + a = a$. -/
+/-- For any natural number $a$, $0 + a = a$, where $+$ is Def. `MyNat.add`. -/
 @[blueprint, simp]
 theorem zero_add (a : MyNat) : add zero a = a := by
   /-- The proof follows by induction. -/
@@ -40,14 +40,12 @@ theorem succ_add (a b : MyNat) : add (succ a) b = succ (add a b) := by
 theorem add_comm (a b : MyNat) : add a b = add b a := by
   induction b with
   | zero =>
-    -- TODO: how should \refs be resolved?
-    -- Either this, or [MyNat.zero_add], or `MyNat.zero_add` with
-    -- postprocessing somewhere (in Lean or Pandoc) to convert to \ref.
     have := trivial
-    /-- The base case follows from \ref{MyNat.zero_add}. -/
+    -- The inline code `abc` is converted to \ref{abc} if possible.
+    /-- The base case follows from `MyNat.zero_add`. -/
     simp [add]
   | succ b ih =>
-    /-- The inductive case follows from \ref{MyNat.succ_add}. -/
+    /-- The inductive case follows from `MyNat.succ_add`. -/
     using succ_add  -- the `using` tactic declares that the proof uses succ_add
     sorry
 
@@ -69,21 +67,34 @@ theorem mul_comm (a b : MyNat) : mul a b = mul b a := by sorry
   (uses := [mul])
   -- Alternatively to docstring tactics and `using` tactics, proof metadata can be specified
   -- by `proof` and `proofUses`.
-  (proof := /-- See \cite{Wiles1995, Taylor-Wiles1995}. -/) (proofUses := [mul_comm])
+  (proof := /-- See [Wiles1995, Taylor-Wiles1995]. -/) (proofUses := [mul_comm])
   (notReady := true) (discussion := 1)]
 theorem flt : (sorry : Prop) := sorry
 
 end MyNat
 
--- Additionally to the above, you can also manually insert nodes from other modules
--- to the blueprint:
+/-!
 
--- blueprint_include_node ...
--- blueprint_include_module ...
--- blueprint_include_library ...
+In the docstring, usual Markdown features and math mode are supported (by MD4Lean),
+with additional support for citations like [Wiles1995] using `[square brackets]`
+and references to other nodes like `MyNat.zero_add` using inline `` `code` ``.
 
+You can also directly input raw LaTeX, e.g. as follows:
+
+\begin{thebibliography}{9}
+
+\bibitem{Wiles1995}
+Andrew Wiles (1995) \emph{Modular elliptic curves and Fermat's last theorem}, Annals of Mathematics, 141(3), 443--551.
+
+\bibitem{Taylor-Wiles1995}
+Richard Taylor and Andrew Wiles (1995) \emph{Ring-theoretic properties of certain Hecke algebras}, Annals of Mathematics, 141(3), 553--572.
+
+\end{thebibliography}
+
+-/
 
 -- Finally, these are utility commands for debugging:
 
+#show_blueprint BlueprintGen.Content
 #show_blueprint
 #show_blueprint_json

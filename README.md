@@ -1,9 +1,15 @@
 # blueprint-gen
 
-This is a quick demo for a new blueprint tool for Lean. It is currently completely in proof-of-concept stage.
+*This is a quick demo for a new blueprint tool for Lean. It is currently completely in proof-of-concept stage.*
 
-The blueprint LaTeX (and PDF and web) is generated from the source Lean code directly,
-where the nodes are declared by the `blueprint` attribute:
+blueprint-gen is a tool for generating the blueprint directly from Lean.
+
+Nodes in the blueprint consist of theorems and definitions.
+Nodes are declared in Lean by the `@[blueprint]` tag.
+
+You may input the nodes defined in Lean using the `\inputleannode{name}` command.
+
+For example, if in the `Example.lean` module of the `Example` library, we have:
 
 ```lean
 /-! # Natural numbers -/
@@ -27,7 +33,7 @@ def add (a b : MyNat) : MyNat :=
   | zero => a
   | succ b => succ (add a b)
 
-/-- For any natural number $a$, $0 + a = a$. -/
+/-- For any natural number $a$, $0 + a = a$, where $+$ is Def. `MyNat.add`. -/
 @[blueprint, simp]
 theorem zero_add (a : MyNat) : add zero a = a := by
   /-- The proof follows by induction. -/
@@ -36,44 +42,36 @@ theorem zero_add (a : MyNat) : add zero a = a := by
 end MyNat
 ```
 
-becomes
+After running `lake build Example:blueprint`, the generated blueprint will be in `.lake/build/blueprint/library/Example.tex`.
+You may then write in blueprint LaTeX (typically, `blueprint/src/content.tex`) the following:
+
 
 ```latex
-# Natural numbers
+\input{../../.lake/build/blueprint/library/Example}
 
-\begin{definition}[Natural numbers]\leanok{}\lean{MyNat}\label{MyNat}
-% at ./Example.lean:6.0-9.24
-\end{definition}
+Input a definition (or theorem) defined in Lean:
 
-## Addition
-Here we define addition of natural numbers.
+\inputleannode{MyNat}
 
+Input the contents (including definitions, theorems, and module docstrings) of an entire module:
 
-\begin{definition}\leanok{}\uses{MyNat}Natural number addition.\lean{MyNat.add}\label{MyNat.add}
-% at ./Example.lean:18.0-23.28
-\end{definition}
-
-\begin{theorem}\leanok{}\uses{MyNat,MyNat.add}For any natural number $a$, $0 + a = a$.\lean{MyNat.zero_add}\label{MyNat.zero_add}
-% at ./Example.lean:25.0-29.31
-\end{theorem}
-
-\begin{proof}\leanok{}The proof follows by induction.\end{proof}
+\inputleanmodule{Example}
 ```
 
-This tool is built directly on top of [leanblueprint](https://github.com/PatrickMassot/leanblueprint).
+After running `leanblueprint pdf` or `leanblueprint web`, you can see the blueprint in the web version or PDF version.
+The output of the above example is in [blueprint/src/print.pdf](./blueprint/src/print.pdf).
 
-Some features that are available:
+This tool is built directly on top of [leanblueprint](https://github.com/PatrickMassot/leanblueprint).
 
 - You can declare the informal statement of a theorem or definition with its docstring.
 - You can declare the informal proof of a theorem with the `/-- proof -/` tactic.
 - The dependencies of a theorem statement and proof are automatically inferred.
-  You can override this with the `uses` and `proofUses` options,
-  and with the `using` tactic.
+  You can override this with the `uses` and `proofUses` options, and with the `using` tactic.
 - Whether the statement or proof is ready (i.e. `\leanok`) is inferred from whether it is
   sorry-free.
-- You can manually insert nodes from other modules to the blueprint with the
-  `blueprint_include_node node_from_other_module` command.
 - For debugging, you can use the `#show_blueprint` and `#show_blueprint_json` commands.
+- Use `\inputleannode{name}` to input a node tagged by `@[blueprint]` in Lean.
+- Use `\inputleanmodule{Module}` to input the nodes tagged by `@[blueprint]` and module docstrings defined by `/-! ... -/` of an entire module.
 
 See [Example.lean](./Example.lean) for more details.
 
@@ -91,9 +89,7 @@ I have already manually `\input` this file into [blueprint/src/content.tex](./bl
 ```sh
 leanblueprint pdf  # to generate the PDF
 leanblueprint web  # to generate the web HTML
-leanblueprint serve  # to serve the web HTML
+leanblueprint serve  # to serve the web HTML at localhost
 ```
 
 (where `leanblueprint` is from [leanblueprint](https://github.com/PatrickMassot/leanblueprint)).
-
-Then you can go to `http://0.0.0.0:8080` to see the web version or `http://0.0.0.0:8080/dep_graph_document.html` to see the dependency graph.
