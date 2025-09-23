@@ -5,11 +5,9 @@
 Blueprint-gen is a tool for generating the blueprint data of a Lean project directly from Lean.
 
 The blueprint is a high-level plan of a Lean project, consisting of a series of nodes (theorems and definitions) and the dependency relations between them.
-The purpose of blueprint-gen is to make it easier to write the blueprint by directly referencing nodes in Lean.
+The purpose of blueprint-gen is to make it easier to write the blueprint by generating blueprint data directly from Lean.
 
-Nodes are declared in Lean by the `@[blueprint]` tag.
-In the blueprint LaTeX, you may input these nodes using the `\inputleannode{name}` command,
-or input entire modules using the `\inputleanmodule{Module}` command.
+Nodes are declared in Lean by the `@[blueprint]` tag. They are exported to LaTeX, which you may then put in the blueprint.
 
 This tool is built to complement [leanblueprint](https://github.com/PatrickMassot/leanblueprint) and its structure is inspired by [doc-gen4](https://github.com/leanprover/doc-gen4). The idea is inspired by [leanblueprint-extract](https://github.com/AlexKontorovich/PrimeNumberTheoremAnd/tree/main/leanblueprint-extract).
 
