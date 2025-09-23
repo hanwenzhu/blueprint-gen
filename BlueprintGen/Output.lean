@@ -43,7 +43,7 @@ register_option blueprint.bracketedCitations : Bool := {
   descr := "Whether to register square-bracketed content as citations (e.g. `[taylorwiles]`)."
 }
 
-register_option blueprint.citationCommand : String := {
+register_option blueprint.citeCommand : String := {
   defValue := "cite",
   descr := "The LaTeX command to use for citations (e.g. `cite` or `citep`)."
 }
@@ -53,9 +53,9 @@ partial def postprocessMarkdown (s : String) (opts : Options) : String :=
   if !blueprint.bracketedCitations.get opts then
     s
   else
-    let citationCommand := blueprint.citationCommand.get opts
+    let citeCommand := blueprint.citeCommand.get opts
     (findAllEnclosed s '[' ']').foldl (init := s) fun s bracketed =>
-      s.replace s!"[{bracketed}]" (s!"\\{citationCommand}" ++ "{" ++ bracketed ++ "}")
+      s.replace s!"[{bracketed}]" (s!"\\{citeCommand}" ++ "{" ++ bracketed ++ "}")
 where
   findAllEnclosed (s : String) (bracketStart bracketEnd : Char) (i : String.Pos := 0) (ret : Array String := ∅) : Array String :=
     let lps := s.posOfAux bracketStart s.endPos i + ⟨1⟩
@@ -110,8 +110,8 @@ where
     | .u texts => return "\\ul{" ++ String.join (← texts.mapM textToLatex).toList ++ "}"
     | .a href _title _isAuto texts => return "\\href{" ++ String.join (href.map attrTextToLatex).toList ++ "}{" ++ String.join (← texts.mapM textToLatex).toList ++ "}"
     | .img src _title _alt => return "\\includegraphics{" ++ String.join (src.map attrTextToLatex).toList ++ "}"
-    /- Convert inline code to \ref where possible. If not a valid reference, this defaults to \texttt{content} (see `latexPreamble`). -/
-    | .code content => return "\\refleannode{" ++ String.join content.toList ++ "}"
+    -- \leancode converts inline code to \ref where possible. If not a valid reference, this defaults to \texttt{content} (see `latexPreamble`).
+    | .code content => return "\\leancode{" ++ String.join content.toList ++ "}"
     | .del texts => return "\\st{" ++ String.join (← texts.mapM textToLatex).toList ++ "}"
     | .latexMath content => return "$" ++ String.join content.toList ++ "$"
     | .latexMathDisplay content => return "$$" ++ String.join content.toList ++ "$$"
@@ -212,8 +212,8 @@ def latexPreamble : Latex := "
 \\providecommand{\\inputleannode}[1]{%
   \\@ifundefined{leannode@#1}{}{%
     \\csname leannode@#1\\endcsname}}
-% \\refleannode{name} references a Lean node
-\\providecommand{\\refleannode}[1]{%
+% \\leancode{name} references a Lean node
+\\providecommand{\\leancode}[1]{%
   \\@ifundefined{leannode@#1}{%
     \\texttt{#1}}{%
     \\ref{#1}}}

@@ -2,14 +2,20 @@
 
 *This is a quick demo for a new blueprint tool for Lean. It is currently completely in proof-of-concept stage.*
 
-blueprint-gen is a tool for generating the blueprint directly from Lean.
+Blueprint-gen is a tool for generating the blueprint data of a Lean project directly from Lean.
 
-Nodes in the blueprint consist of theorems and definitions.
+The blueprint is a high-level plan of a Lean project, consisting of a series of nodes (theorems and definitions) and the dependency relations between them.
+The purpose of blueprint-gen is to make it easier to write the blueprint by directly referencing nodes in Lean.
+
 Nodes are declared in Lean by the `@[blueprint]` tag.
+In the blueprint LaTeX, you may input these nodes using the `\inputleannode{name}` command,
+or input entire modules using the `\inputleanmodule{Module}` command.
 
-You may input the nodes defined in Lean using the `\inputleannode{name}` command.
+This tool is built directly on top of [leanblueprint](https://github.com/PatrickMassot/leanblueprint).
 
-For example, if in the `Example.lean` module of the `Example` library, we have:
+## Example
+
+Consider the following `MyNat` API:
 
 ```lean
 /-! # Natural numbers -/
@@ -42,54 +48,60 @@ theorem zero_add (a : MyNat) : add zero a = a := by
 end MyNat
 ```
 
-After running `lake build Example:blueprint`, the generated blueprint will be in `.lake/build/blueprint/library/Example.tex`.
-You may then write in blueprint LaTeX (typically, `blueprint/src/content.tex`) the following:
-
-
-```latex
-\input{../../.lake/build/blueprint/library/Example}
-
-Input a definition (or theorem) defined in Lean:
-
-\inputleannode{MyNat}
-
-Input the contents (including definitions, theorems, and module docstrings) of an entire module:
-
-\inputleanmodule{Example}
-```
-
-After running `leanblueprint pdf` or `leanblueprint web`, you can see the blueprint in the web version or PDF version.
 The output of the above example is in [blueprint/src/print.pdf](./blueprint/src/print.pdf).
 
-This tool is built directly on top of [leanblueprint](https://github.com/PatrickMassot/leanblueprint).
+## Specifying the blueprint
 
-- You can declare the informal statement of a theorem or definition with its docstring.
-- You can declare the informal proof of a theorem with the `/-- proof -/` tactic.
-- The dependencies of a theorem statement and proof are automatically inferred.
-  You can override this with the `uses` and `proofUses` options, and with the `using` tactic.
-- Whether the statement or proof is ready (i.e. `\leanok`) is inferred from whether it is
-  sorry-free.
-- For debugging, you can use the `#show_blueprint` and `#show_blueprint_json` commands.
-- Use `\inputleannode{name}` to input a node tagged by `@[blueprint]` in Lean.
-- Use `\inputleanmodule{Module}` to input the nodes tagged by `@[blueprint]` and module docstrings defined by `/-! ... -/` of an entire module.
+After tagging with `@[blueprint]`, blueprint-gen will:
 
-See [Example.lean](./Example.lean) for more details.
+1. Extract the statement and proof of a node from docstrings.
+2. Infer the dependencies of a node from the constants used in the statement or proof.
+3. Infer whether the statement or proof is ready (i.e. `\leanok`) from whether it is sorry-free.
+4. Add the node to the generated blueprint.
 
-## Demo
+You may override the constants used in the statement or proof with the `uses` and `proofUses` options, or with the `using` tactic.
 
-To run the demo [Example.lean](./Example.lean), run:
+## Generating the blueprint
 
-```sh
-lake build Example:blueprint
+First, install [leanblueprint](https://github.com/PatrickMassot/leanblueprint) and follow the instructions there to set up a blueprint project, if not already done.
+
+To generate the blueprint for a module, first input the generated blueprint to the blueprint document:
+
+```latex
+% Typically, in blueprint/src/content.tex
+
+\input{../../.lake/build/blueprint/library/Example}
+
+% Input the blueprint contents of module `Example`:
+\inputleanmodule{Example}
+
+% You may also input only a single node using \inputleannode{MyNat.add}.
 ```
 
-Then the generated blueprint will be in `.lake/build/blueprint/module/Example.tex`.
-I have already manually `\input` this file into [blueprint/src/content.tex](./blueprint/src/content.tex), so that you can then run:
+Then run:
 
 ```sh
-leanblueprint pdf  # to generate the PDF
-leanblueprint web  # to generate the web HTML
-leanblueprint serve  # to serve the web HTML at localhost
+# Generate the blueprint to .lake/build/blueprint
+lake build :blueprint
+# Build the blueprint using leanblueprint
+leanblueprint pdf
+leanblueprint web
 ```
 
-(where `leanblueprint` is from [leanblueprint](https://github.com/PatrickMassot/leanblueprint)).
+You may also want to put `lake build :blueprint` in the GitHub Actions workflow typically at `.github/workflows/blueprint.yml`.
+
+## Converting from existing blueprint format
+
+With a project that uses the existing leanblueprint format:
+
+First go to a clean branch without any uncomitted changes, to prevent overwriting any work you have done.
+
+You can then convert to blueprint-gen format by adding `blueprint-gen` as a dependency to lakefile, run `lake update blueprint-gen`, and then run:
+
+```sh
+# TODO, make this into lake exe
+# At the project root
+python .lake/packages/blueprint-gen/scripts/convert/main.py --modules {root modules of your project}
+```
+
+Then you would need to fix the errors in the converted files. You would also need to manually add the nodes that are not in the project itself (typically, `\mathlibok` nodes) to the blueprint, which will be saved to `extra_nodes.lean`.

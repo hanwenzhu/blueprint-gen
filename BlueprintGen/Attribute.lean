@@ -43,7 +43,7 @@ syntax blueprintOption := "("
   blueprintUsesOption <|> blueprintProofUsesOption <|>
   blueprintNotReadyOption <|> blueprintDiscussionOption <|>
   blueprintLatexEnvOption ")"
-syntax blueprintOptions := (str)? (ppSpace blueprintOption)*
+syntax blueprintOptions := (ppSpace str)? (ppSpace blueprintOption)*
 
 /-- The `blueprint` attribute tags a constant to add to the blueprint. -/
 syntax (name := blueprint) "blueprint" "?"? blueprintOptions : attr

@@ -14,15 +14,19 @@ lean_exe «blueprint-gen» where
   root := `Main
   supportInterpreter := true
 
+/-- Utility script used for converting from existing blueprint format. -/
 lean_exe add_position_info where
   root := `scripts.convert.add_position_info
   supportInterpreter := true
 
-require «doc-gen4» from git "https://github.com/leanprover/doc-gen4" @ version
+require batteries from git
+  "https://github.com/leanprover-community/batteries" @ version
 
-require batteries from git "https://github.com/leanprover-community/batteries" @ version
+require MD4Lean from git
+  "https://github.com/acmepjz/md4lean" @ "main"
 
-require Cli from git "https://github.com/mhuisi/lean4-cli" @ version
+require Cli from git
+  "https://github.com/mhuisi/lean4-cli" @ version
 
 /-- A facet to generate the blueprint for a module. -/
 module_facet blueprint (mod : Module) : Unit := do
@@ -87,3 +91,15 @@ library_facet blueprintJson (lib : LeanLib) : Unit := do
           args := #["index", "--json", "--build", buildDir.toString, lib.name.toString, ",".intercalate (mods.map (·.name.toString)).toList]
           env := ← getAugmentedEnv
         }
+
+/-- A facet to generate the blueprint for each library in a package. -/
+package_facet blueprint (pkg : Package) : Unit := do
+  let libJobs := Job.collectArray <| ← pkg.leanLibs.mapM (fetch <| ·.facet `blueprint)
+  let _ ← libJobs.await
+  return .nil
+
+/-- A facet to generate the blueprint JSON data for each library in a package. -/
+package_facet blueprintJson (pkg : Package) : Unit := do
+  let libJobs := Job.collectArray <| ← pkg.leanLibs.mapM (fetch <| ·.facet `blueprintJson)
+  let _ ← libJobs.await
+  return .nil
