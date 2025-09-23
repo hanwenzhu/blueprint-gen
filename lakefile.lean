@@ -1,8 +1,6 @@
 import Lake
 open System Lake DSL
 
-def version := "v4.23.0-rc2"
-
 package «blueprint-gen»
 
 lean_lib BlueprintGen
@@ -20,13 +18,13 @@ lean_exe add_position_info where
   supportInterpreter := true
 
 require batteries from git
-  "https://github.com/leanprover-community/batteries" @ version
+  "https://github.com/leanprover-community/batteries" @ "v4.23.0-rc2"
 
 require MD4Lean from git
   "https://github.com/acmepjz/md4lean" @ "main"
 
 require Cli from git
-  "https://github.com/mhuisi/lean4-cli" @ version
+  "https://github.com/mhuisi/lean4-cli" @ "v4.23.0-rc2"
 
 /-- A facet to generate the blueprint for a module. -/
 module_facet blueprint (mod : Module) : Unit := do
@@ -78,7 +76,7 @@ library_facet blueprint (lib : LeanLib) : Unit := do
 /-- A facet to generate the JSON data for the blueprint for a library. -/
 library_facet blueprintJson (lib : LeanLib) : Unit := do
   let mods ← (← lib.modules.fetch).await
-  let moduleJobs := Job.collectArray <| ← mods.mapM (fetch <| ·.facet `blueprint)
+  let moduleJobs := Job.collectArray <| ← mods.mapM (fetch <| ·.facet `blueprintJson)
   let exeJob ← «blueprint-gen».fetch
   let buildDir := (← getRootPackage).buildDir
   let latexFile := buildDir / "blueprint" / "library" / lib.name.toString |>.addExtension "json"

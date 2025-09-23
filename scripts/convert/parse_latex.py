@@ -119,6 +119,7 @@ def convert_ref_to_texttt(source: str, label_to_node: dict[str, Node]):
 
 
 def convert_latex_label_to_lean_name(node_part: NodePart, label_to_node: dict[str, Node]):
+    """Converts the `uses` and `\\ref` commands to reference Lean names rather than LaTeX labels."""
     uses_lean = set()
     for use in node_part.uses:
         if use in label_to_node:

@@ -27,6 +27,11 @@ def main():
         default=None,
         help="Path to the blueprint root directory, which should contain web.tex and plastex.cfg (default: blueprint/src or blueprint).",
     )
+    parser.add_argument(
+        "--extract-only",
+        action="store_true",
+        help="Only extract the nodes and print them to stdout in JSON; no modification is made to the Lean source.",
+    )
 
     args = parser.parse_args()
 
@@ -49,11 +54,6 @@ def main():
     logger.info("Parsing nodes in blueprint LaTeX")
     nodes = parse_nodes(source)
 
-    # Convert LaTeX to Markdown
-    logger.info("Converting LaTeX to Markdown using Pandoc")
-    for node in nodes:
-        convert_node_latex_to_markdown(node)
-
     # Convert nodes to JSON
     logger.info("Converting nodes to JSON")
     nodes_json = json.dumps(
@@ -72,11 +72,20 @@ def main():
         stderr=sys.stderr,
     ).stdout
 
+    if args.extract_only:
+        print(nodes_with_pos_json)
+        return
+
     # Parse the JSON into NodeWithPos
     logger.info("Parsing JSON into NodeWithPos")
     nodes_with_pos = [
         NodeWithPos.model_validate(node) for node in json.loads(nodes_with_pos_json)
     ]
+
+    # Convert LaTeX to Markdown
+    logger.info("Converting LaTeX to Markdown using Pandoc")
+    for node in nodes_with_pos:
+        convert_node_latex_to_markdown(node)
 
     # Write the blueprint attributes to Lean files
     logger.info("Writing @[blueprint] attributes to Lean files")

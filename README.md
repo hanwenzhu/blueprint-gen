@@ -11,7 +11,7 @@ Nodes are declared in Lean by the `@[blueprint]` tag.
 In the blueprint LaTeX, you may input these nodes using the `\inputleannode{name}` command,
 or input entire modules using the `\inputleanmodule{Module}` command.
 
-This tool is built directly on top of [leanblueprint](https://github.com/PatrickMassot/leanblueprint).
+This tool is built to complement [leanblueprint](https://github.com/PatrickMassot/leanblueprint) and its structure is inspired by [doc-gen4](https://github.com/leanprover/doc-gen4).
 
 ## Example
 
@@ -45,10 +45,38 @@ theorem zero_add (a : MyNat) : add zero a = a := by
   /-- The proof follows by induction. -/
   induction a <;> simp [*, add]
 
+/-- For any natural numbers $a, b$, $(a + 1) + b = (a + b) + 1$. -/
+@[blueprint]
+theorem succ_add (a b : MyNat) : add (succ a) b = succ (add a b) := by
+  /-- Proof by induction on `b`. -/
+  -- If the proof contains sorry, the `\leanok` command will not be added
+  sorry
+
+/-- For any natural numbers $a, b$, $a + b = b + a$. -/
+@[blueprint]
+theorem add_comm (a b : MyNat) : add a b = add b a := by
+  induction b with
+  | zero =>
+    -- The inline code `abc` is converted to \ref{abc} if possible.
+    /-- The base case follows from `MyNat.zero_add`. -/
+    simp [add]
+  | succ b ih =>
+    /-- The inductive case follows from `MyNat.succ_add`. -/
+    using succ_add  -- the `using` tactic declares that the proof uses succ_add
+    sorry
+
+-- Additional content omitted
+
 end MyNat
 ```
 
-The output of the above example is in [blueprint/src/print.pdf](./blueprint/src/print.pdf).
+The output of the above example is:
+
+![Blueprint web](https://raw.githubusercontent.com/hanwenzhu/blueprint-gen-example/refs/heads/main/images/web.png)
+
+With depedency graph:
+
+![Depedency graph](https://raw.githubusercontent.com/hanwenzhu/blueprint-gen-example/refs/heads/main/images/depgraph.png)
 
 ## Specifying the blueprint
 
@@ -61,6 +89,8 @@ After tagging with `@[blueprint]`, blueprint-gen will:
 
 You may override the constants used in the statement or proof with the `uses` and `proofUses` options, or with the `using` tactic.
 
+To view the generated blueprint data of a node, use `@[blueprint?]`.
+
 ## Generating the blueprint
 
 First, install [leanblueprint](https://github.com/PatrickMassot/leanblueprint) and follow the instructions there to set up a blueprint project, if not already done.
@@ -72,8 +102,8 @@ To generate the blueprint for a module, first input the generated blueprint to t
 
 \input{../../.lake/build/blueprint/library/Example}
 
-% Input the blueprint contents of module `Example`:
-\inputleanmodule{Example}
+% Input the blueprint contents of module `Example.MyNat`:
+\inputleanmodule{Example.MyNat}
 
 % You may also input only a single node using \inputleannode{MyNat.add}.
 ```
@@ -88,7 +118,13 @@ leanblueprint pdf
 leanblueprint web
 ```
 
-You may also want to put `lake build :blueprint` in the GitHub Actions workflow typically at `.github/workflows/blueprint.yml`.
+You may also want to put this in the GitHub Actions workflow typically at `.github/workflows/blueprint.yml`:
+
+```yaml
+      # Before "Build blueprint and copy to `home_page/blueprint`":
+      - name: Extract blueprint
+        run: ~/.elan/bin/lake build :blueprint
+```
 
 ## Converting from existing blueprint format
 
@@ -105,3 +141,13 @@ python .lake/packages/blueprint-gen/scripts/convert/main.py --modules {root modu
 ```
 
 Then you would need to fix the errors in the converted files. You would also need to manually add the nodes that are not in the project itself (typically, `\mathlibok` nodes) to the blueprint, which will be saved to `extra_nodes.lean`.
+
+## Extracting nodes in JSON
+
+To extract the blueprint nodes in machine-readable format, run:
+
+```sh
+lake build :blueprintJson
+```
+
+The output will be in `.lake/build/blueprint`.

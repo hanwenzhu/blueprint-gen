@@ -26,6 +26,8 @@ as follows:
 3. If possible, we convert inline code with a constant (e.g. `abc`) to \ref{abc} commands.
 4. We convert the markdown to LaTeX macro definitions as output.
 
+**TODO**: Support doc-gen4 style named citations like [abc][def].
+
 The output provides the following macros:
 - `\inputleannode{name}`: Inputs the theorem or definition with Lean name `name`.
 - `\inputleanmodule{Module}`: Inputs the entire module (containing nodes and module docstrings) with module name `Module`.s
