@@ -18,13 +18,13 @@ lean_exe add_position_info where
   supportInterpreter := true
 
 require batteries from git
-  "https://github.com/leanprover-community/batteries" @ "v4.23.0-rc2"
+  "https://github.com/leanprover-community/batteries" @ "v4.24.0-rc1"
 
 require MD4Lean from git
   "https://github.com/acmepjz/md4lean" @ "main"
 
 require Cli from git
-  "https://github.com/mhuisi/lean4-cli" @ "v4.23.0-rc2"
+  "https://github.com/mhuisi/lean4-cli" @ "v4.24.0-rc1"
 
 /-- A facet to generate the blueprint for a module. -/
 module_facet blueprint (mod : Module) : Unit := do

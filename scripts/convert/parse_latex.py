@@ -2,6 +2,7 @@ import uuid
 from pathlib import Path
 import re
 from dataclasses import dataclass
+from typing import Optional
 
 from loguru import logger
 
@@ -44,7 +45,7 @@ def find_and_remove_command_arguments(command: str, source: str) -> tuple[list[s
     return values, source
 
 
-def find_and_remove_command_argument(command: str, source: str) -> tuple[str | None, str]:
+def find_and_remove_command_argument(command: str, source: str) -> tuple[Optional[str], str]:
     args, source = find_and_remove_command_arguments(command, source)
     if len(args) > 1:
         logger.warning(f"Multiple \\{command} arguments found: {args}; only using the first one.")
@@ -53,15 +54,15 @@ def find_and_remove_command_argument(command: str, source: str) -> tuple[str | N
 
 @dataclass
 class SourceInfo:
-    label: str | None
+    label: Optional[str]
     uses: list[str]
     alsoIn: list[str]
-    proves: str | None
+    proves: Optional[str]
     leanok: bool
     notready: bool
     mathlibok: bool
-    lean: str | None
-    discussion: int | None
+    lean: Optional[str]
+    discussion: Optional[int]
 
 
 def parse_and_remove_blueprint_commands(source: str) -> tuple[SourceInfo, str]:
@@ -92,7 +93,7 @@ def parse_and_remove_blueprint_commands(source: str) -> tuple[SourceInfo, str]:
     ), source
 
 
-def try_int(s: str | None) -> int | None:
+def try_int(s: Optional[str]) -> Optional[int]:
     if s is None:
         return None
     try:
@@ -142,7 +143,7 @@ def process_source(source: str) -> tuple[SourceInfo, str]:
     return parse_and_remove_blueprint_commands(source)
 
 
-def generate_new_lean_name(visited_names: set[str], base: str | None) -> str:
+def generate_new_lean_name(visited_names: set[str], base: Optional[str]) -> str:
     """Generate a unique Lean identifier."""
     if base is None:
         base = f"node_{uuid.uuid4().hex}"

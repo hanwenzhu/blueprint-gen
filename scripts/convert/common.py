@@ -2,6 +2,7 @@ import subprocess
 import re
 import json
 import sys
+from typing import Optional
 
 from loguru import logger
 
@@ -31,10 +32,10 @@ class NodePart(BaseSchema):
 class Node(BaseSchema):
     name: str  # Lean identifier (unique)
     statement: NodePart
-    proof: NodePart | None
+    proof: Optional[NodePart]
     not_ready: bool
-    discussion: int | None
-    title: str | None
+    discussion: Optional[int]
+    title: Optional[str]
 
     def to_lean_attribute(self) -> str:
         configs = []
@@ -68,8 +69,8 @@ class DeclarationLocation(BaseSchema):
 
 class NodeWithPos(Node):
     has_lean: bool
-    location: DeclarationLocation | None
-    file: str | None
+    location: Optional[DeclarationLocation]
+    file: Optional[str]
 
 
 PANDOC_DEFAULT_WIDTH = 100

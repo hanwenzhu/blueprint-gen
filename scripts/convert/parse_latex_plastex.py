@@ -1,6 +1,7 @@
 import uuid
 from pathlib import Path
 import re
+from typing import Optional
 
 from loguru import logger
 
@@ -88,7 +89,7 @@ def process_source(node: Macro) -> str:
     return remove_unnecessary_spaces(node.childrenSource)
 
 
-def try_int(s: str | None) -> int | None:
+def try_int(s: Optional[str]) -> Optional[int]:
     if s is None:
         return None
     try:
@@ -97,7 +98,7 @@ def try_int(s: str | None) -> int | None:
         return None
 
 
-def generate_new_lean_name(visited_names: set[str], base: str | None) -> str:
+def generate_new_lean_name(visited_names: set[str], base: Optional[str]) -> str:
     """Generate a unique Lean identifier."""
     if base is None:
         base = f"node_{uuid.uuid4().hex}"

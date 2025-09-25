@@ -20,7 +20,6 @@ def runEnvOfImports (imports : Array Name) (x : CoreM α) : IO α := do
   initSearchPath (← findSysroot)
   let env ← envOfImports imports
   let config := {
-    -- TODO: parameterize maxHeartbeats
     maxHeartbeats := 100000000,
     options := ⟨[
       (`pp.tagAppFns, true),
@@ -28,7 +27,6 @@ def runEnvOfImports (imports : Array Name) (x : CoreM α) : IO α := do
       (`debug.skipKernelTC, true),
       (`Elab.async, false)
     ]⟩,
-    -- TODO: Figure out whether this could cause some bugs
     fileName := default,
     fileMap := default,
   }
