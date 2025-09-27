@@ -43,7 +43,7 @@ elab docComment:docComment : tactic => do
   let doc := (← getDocStringText docComment).trim
   modifyEnv fun env => addProofDocString env name doc
 
-/-! We implement the `using` tactic that declares used constants. -/
+/-! We implement the `blueprint_using` and `sorry_using` tactics that declares used constants. -/
 
 namespace ProofUsing
 
@@ -66,16 +66,29 @@ end ProofUsing
 
 open ProofUsing
 
-def addProofUsing (env : Environment) (name : Name) (used : Name) : Environment :=
-  proofUsingExt.addEntry (asyncDecl := name) env (name, used)
-
-def getProofUsing (env : Environment) (name : Name) : Array Name :=
-  proofUsingExt.getState (asyncDecl := name) env |>.findD name #[]
-
-elab "using" ids:(ppSpace colGt ident)+ : tactic => do
-  let some name ← Term.getDeclName? | throwError "could not get declaration name"
-  for id in ids do
+/--
+`blueprint_using [a, b]` adds `a` and `b` as dependencies to the blueprint metadata.
+It is basically the same as `let := a; let := b`.
+-/
+elab "blueprint_using" " [" ids:ident,* "]" : tactic => do
+  -- let some name ← Term.getDeclName? | throwError "could not get declaration name"
+  for id in ids.getElems do
     let used ← realizeGlobalConstNoOverloadWithInfo id
-    modifyEnv fun env => addProofUsing env name used
+    let ty := (← getConstInfo used).type
+    liftMetaTactic1 fun g => do
+      let g' ← g.define (← Meta.mkFreshBinderNameForTactic `using) ty (mkConst used)
+      let (_, g'') ← g'.intro1P
+      return g''
+
+/--
+`sorry_using [a, b]` is the same as `sorry`, but adds `a` and `b` as dependencies to the blueprint metadata.
+It is basically similar to `let := a; let := b; sorry`.
+-/
+macro (name := tacticSorryUsing) "sorry_using" " [" ids:ident,* "]" : tactic =>
+  `(tactic| blueprint_using [$[$ids],*] <;> sorry)
+
+@[inherit_doc tacticSorryUsing]
+macro (name := termSorryUsing) "sorry_using" " [" ids:ident,* "]" : term =>
+  `(term| by sorry_using [$[$ids],*])
 
 end BlueprintGen

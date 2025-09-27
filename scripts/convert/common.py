@@ -96,7 +96,8 @@ def pandoc_convert_latex_to_markdown(latex: str) -> str:
         "markdown-raw_html-raw_attribute-bracketed_spans-native_divs-native_spans-link_attributes",
         latex
     )
-    # **TODO**: Postprocess citations
+    # Postprocess citations
+    converted = re.sub(r"\[\@(.*?)\]", r"[\1]", converted)
     return converted.strip()
 
 def convert_node_latex_to_markdown(node: Node):

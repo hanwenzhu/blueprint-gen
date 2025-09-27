@@ -85,25 +85,21 @@ def elabBlueprintConfig : Syntax → CoreM Config
   | _ => throwUnsupportedSyntax
 
 def hasProof (name : Name) (cfg : Config) : CoreM Bool := do
-  return cfg.hasProof.getD (wasOriginallyTheorem (← getEnv) name)
+  return cfg.hasProof.getD (cfg.proof.isSome || wasOriginallyTheorem (← getEnv) name)
 
 /-- Returns a pair of sets (constants used by statement, constants used by proof).
 They are disjoint except that possibly both contain `sorryAx`. -/
 def usedConstants (name : Name) : CoreM (NameSet × NameSet) := do
-  let env ← getEnv
   let info ← getConstInfo name
   -- TODO: constructors in case of structure/inductive
   let typeUsed := info.type.getUsedConstantsAsSet
   let valueUsed := match info.value? with
     | some value => value.getUsedConstantsAsSet
     | none => ∅
-  -- User-declared constants with the `using` tactic
-  let proofUsing := NameSet.ofArray (getProofUsing env name)
 
   let statementUsed := typeUsed
-  let proofUsed := valueUsed ∪ proofUsing
 
-  return (statementUsed, proofUsed \ statementUsed.erase ``sorryAx)
+  return (statementUsed, valueUsed \ statementUsed.erase ``sorryAx)
 
 def mkStatementPart (name : Name) (cfg : Config) (hasProof : Bool) (used : NameSet) :
     CoreM NodePart := do

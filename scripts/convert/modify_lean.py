@@ -36,8 +36,8 @@ def insert_docstring_and_attribute(decl: str, new_docstring: str, new_attr: str)
     if decl.startswith("to_additive") and not warned_to_additive:
         warned_to_additive = True
         logger.warning(
-            "Encountered a declaration generated from @[to_additive]. " +
-            "This script currently will result in a Lean syntax error. You may decide to:\n" +
+            "Encountered declaration(s) generated from @[to_additive]. " +
+            "This script currently will result in Lean syntax error. You may decide to:\n" +
             "- Put the additive declaration in the blueprint by `attribute [blueprint] additive_name`\n" +
             "- Put the multiplicative declaration in the blueprint by `@[to_additive, blueprint]`\n" +
             "- Put both in the blueprint by `@[to_additive (attr := blueprint)]`"
@@ -53,10 +53,10 @@ def insert_docstring_and_attribute(decl: str, new_docstring: str, new_attr: str)
 
     match = re.search(r"^\s*/--(.*?)-/\s*", decl, flags=re.DOTALL)
     if match:
-        docstring = f" {new_docstring}\n\n{match.group(1).lstrip()}"
+        docstring = f"\n{new_docstring}\n\n{match.group(1).strip()}\n"
         decl = decl.removeprefix(match.group(0))
     else:
-        docstring = f" {new_docstring} "
+        docstring = f"\n{new_docstring}\n"
 
     match = re.search(r"^\s*@\[(.*?)\]\s*", decl, flags=re.DOTALL)
     if match:
@@ -121,18 +121,18 @@ def write_blueprint_attributes(nodes: list[NodeWithPos], modules: list[str]):
         add_blueprint_gen_import(Path(file))
 
     # The extra Lean source to be inserted somewhere in the project,
-    # containing (1) upstream nodes and (2) nodes not yet in Lean
+    # containing (1) upstream (\mathlibok) nodes and (2) informal-only nodes not yet in Lean
     extra_lean: str = ""
     for node in upstream_nodes:
-        extra_lean += f"attribute [{node.to_lean_attribute()}] {node.name}\n"
+        extra_lean += f"attribute [{node.to_lean_attribute()}] {node.name}\n\n"
     for node in nodes:
         if not node.has_lean:
             extra_lean += f"/-- {node.statement.text} -/\n"
-            extra_lean += f"@[{node.to_lean_attribute}]"
+            extra_lean += f"@[{node.to_lean_attribute}]\n"
             if node.proof is None:
-                extra_lean += f"informal_def {node.name}"
+                extra_lean += f"def {node.name} : (sorry : Type) := sorry\n\n"
             else:
-                extra_lean += f"informal_theorem {node.name}"
+                extra_lean += f"theorem {node.name} : (sorry : Prop) := sorry\n\n"
 
     if extra_lean:
         logger.warning("The Lean code in `extra_nodes.lean` needs to be manually added to your project.")

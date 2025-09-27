@@ -60,8 +60,7 @@ theorem add_comm (a b : MyNat) : add a b = add b a := by
     simp [add]
   | succ b ih =>
     /-- The inductive case follows from `MyNat.succ_add`. -/
-    using succ_add  -- the `using` tactic declares that the proof uses succ_add
-    sorry
+    sorry_using [succ_add]  -- the `sorry_using` tactic declares that the proof uses succ_add
 
 -- Additional content omitted
 

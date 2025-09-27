@@ -131,6 +131,11 @@ def convert_latex_label_to_lean_name(node_part: NodePart, label_to_node: dict[st
     node_part.text = convert_ref_to_texttt(node_part.text, label_to_node)
 
 
+def convert_citet_to_cite(source: str) -> str:
+    source = re.sub(r"\\citet\s*\{([^\}]*)\}", r"\\cite{\1}", source)
+    return source
+
+
 def remove_nonbreaking_spaces(source: str) -> str:
     source = re.sub(r"(?<!\\)~", r" ", source)
     source = source.strip()
@@ -140,6 +145,7 @@ def remove_nonbreaking_spaces(source: str) -> str:
 def process_source(source: str) -> tuple[SourceInfo, str]:
     """Returns the source TeX of the node, removing custom commands."""
     source = remove_nonbreaking_spaces(source)
+    source = convert_citet_to_cite(source)
     return parse_and_remove_blueprint_commands(source)
 
 
@@ -148,13 +154,15 @@ def generate_new_lean_name(visited_names: set[str], base: Optional[str]) -> str:
     if base is None:
         base = f"node_{uuid.uuid4().hex}"
     else:
-        base = base.replace("-", "_")
+        base = base.replace("-", "_").replace(" ", "_")
+        if base and base[0].isdigit():
+            base = "_" + base
     if base not in visited_names:
         return base
     return generate_new_lean_name(visited_names, f"{base}_{uuid.uuid4().hex}")
 
 
-def parse_nodes(source: str) -> list[Node]:
+def parse_nodes(source: str) -> tuple[list[Node], dict[str, list[str]]]:
     """Parse the nodes in the LaTeX source."""
     match = re.search(r"\\usepackage\s*\[[^\]]*\bthms\s*=\s*([^,\]\}]*)", source)
     if match:
@@ -166,7 +174,6 @@ def parse_nodes(source: str) -> list[Node]:
         r"\\begin\s*\{(" + "|".join(depgraph_thm_types + ["proof"]) + r")\}\s*(?:\[(.*?)\])?(.*?)\\end\s*\{\1\}",
         re.DOTALL
     )
-    matches: list[tuple[str, str, str]] = ENV_PATTERN.findall(source)
 
     # Maps matches[i] to node
     match_idx_to_node: dict[int, Node] = {}
@@ -175,21 +182,27 @@ def parse_nodes(source: str) -> list[Node]:
     nodes: list[Node] = []
     name_to_node: dict[str, Node] = {}
     label_to_node: dict[str, Node] = {}
+    
+    # Raw sources of each name, for modifying LaTeX later
+    name_to_raw_sources: dict[str, list[str]] = {}
 
     # Parse all theorem and definition statements
-    for i, (env, title, content) in enumerate(matches):
+    for i, match in enumerate(ENV_PATTERN.finditer(source)):
+        env, title, content = match.groups()
+
         if env not in depgraph_thm_types:
             continue
 
-        source_info, source = process_source(content)
+        source_info, node_source = process_source(content)
         name = source_info.lean or generate_new_lean_name(set(name_to_node.keys()), source_info.label)
+        name_to_raw_sources.setdefault(name, []).append(match.group(0))
 
         if name in name_to_node:
             logger.warning(f"Lean name {name} occurs in blueprint twice; only keeping the first.")
             node = name_to_node[name]
         else:
-            statement = NodePart(lean_ok=source_info.leanok, text=source, uses=set(source_info.uses), latex_env=env)
-            node = Node(name=name, statement=statement, proof=None, not_ready=source_info.notready, discussion=source_info.discussion, title=title or None)
+            statement = NodePart(lean_ok=source_info.leanok, text=node_source, uses=set(source_info.uses), latex_env=env)
+            node = Node(name=name, statement=statement, proof=None, not_ready=source_info.notready, discussion=source_info.discussion, title=title)
             nodes.append(node)
             name_to_node[name] = node
 
@@ -198,11 +211,13 @@ def parse_nodes(source: str) -> list[Node]:
             label_to_node[source_info.label] = node
 
     # Parse all proof statements
-    for i, (env, _, content) in enumerate(matches):
+    for i, match in enumerate(ENV_PATTERN.finditer(source)):
+        env, title, content = match.groups()
+
         if env != "proof":
             continue
 
-        source_info, source = process_source(content)
+        source_info, node_source = process_source(content)
         proves = source_info.proves
         if proves is not None:
             proved = label_to_node[proves]
@@ -213,7 +228,8 @@ def parse_nodes(source: str) -> list[Node]:
                 logger.warning(f"Cannot determine the statement proved by: {source}")
                 continue
 
-        proved.proof = NodePart(lean_ok=source_info.leanok, text=source, uses=set(source_info.uses), latex_env=env)
+        proved.proof = NodePart(lean_ok=source_info.leanok, text=node_source, uses=set(source_info.uses), latex_env=env)
+        name_to_raw_sources.setdefault(proved.name, []).append(match.group(0))
 
     # Convert node \label to node.name
     for node in nodes:
@@ -221,7 +237,7 @@ def parse_nodes(source: str) -> list[Node]:
         if node.proof is not None:
             convert_latex_label_to_lean_name(node.proof, label_to_node)
 
-    return nodes
+    return nodes, name_to_raw_sources
 
 
 def get_bibliography_files(source: str) -> list[Path]:

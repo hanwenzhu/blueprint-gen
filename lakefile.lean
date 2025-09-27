@@ -17,6 +17,11 @@ lean_exe add_position_info where
   root := `scripts.convert.add_position_info
   supportInterpreter := true
 
+lean_exe convert where
+  root := `scripts.convert.main
+  supportInterpreter := true
+  needs := #[add_position_info]
+
 require batteries from git
   "https://github.com/leanprover-community/batteries" @ "v4.24.0-rc1"
 

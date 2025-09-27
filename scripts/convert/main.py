@@ -52,7 +52,7 @@ def main():
 
     # Parse the document into nodes in dependency graph
     logger.info("Parsing nodes in blueprint LaTeX")
-    nodes = parse_nodes(source)
+    nodes, name_to_raw_latex_sources = parse_nodes(source)
 
     # Convert nodes to JSON
     logger.info("Converting nodes to JSON")
@@ -90,6 +90,24 @@ def main():
     # Write the blueprint attributes to Lean files
     logger.info("Writing @[blueprint] attributes to Lean files")
     write_blueprint_attributes(nodes_with_pos, args.modules)
+
+    # Write to LaTeX source
+    logger.info("Replacing LaTeX theorems with \\inputleannode")
+    name_to_node_with_pos = {node.name: node for node in nodes_with_pos}
+    for name, raw_latex_sources in name_to_raw_latex_sources.items():
+        if name not in name_to_node_with_pos:
+            logger.warning(f"Node {name} not found in nodes_with_pos")
+            continue
+        # # Skip writing \inputleannode for nodes that are not in Lean
+        # if not name_to_node_with_pos[name].has_lean:
+        #     continue
+        first_source, *rest_sources = raw_latex_sources
+        for file in blueprint_root.glob("**/*.tex"):
+            file_content = file.read_text()
+            file_content = file_content.replace(first_source, f"\\inputleannode{{{name}}}")
+            for s in rest_sources:
+                file_content = file_content.replace(s, "")
+            file.write_text(file_content)
 
 
 if __name__ == "__main__":
