@@ -1,5 +1,6 @@
 import Lean
 import Batteries.Lean.NameMapAttribute
+import BlueprintGen.Basic
 
 
 open Lean Elab Tactic
@@ -37,11 +38,16 @@ def addProofDocString (env : Environment) (name : Name) (doc : String) : Environ
 def getProofDocString (env : Environment) (name : Name) : Array String :=
   proofDocStringExt.getState (asyncDecl := name) env |>.findD name #[]
 
-elab docComment:docComment : tactic => do
+elab (name := tacticDocComment) docComment:docComment t:tactic : tactic => do
   let some name ← Term.getDeclName? | throwError "could not get declaration name"
   validateDocComment docComment
   let doc := (← getDocStringText docComment).trim
   modifyEnv fun env => addProofDocString env name doc
+  -- NOTE: an alternative approach is to remove `t:tactic` and `evalTactic t`.
+  -- This would also work for our purpose, but we require a following `t:tactic` and then immediately
+  -- evaluate it because this would avoid the unusedTactic linter in Mathlib to flag the docComment
+  -- (and we do not currently import Mathlib and hence cannot modify to ignore `tacticDocComment`).
+  evalTactic t
 
 /-! We implement the `blueprint_using` and `sorry_using` tactics that declares used constants. -/
 
@@ -67,11 +73,11 @@ end ProofUsing
 open ProofUsing
 
 /--
-`blueprint_using [a, b]` adds `a` and `b` as dependencies to the blueprint metadata.
+`blueprint_using [a, b]` adds `a` and `b` as dependencies for the blueprint metadata.
+
 It is basically the same as `let := a; let := b`.
 -/
 elab "blueprint_using" " [" ids:ident,* "]" : tactic => do
-  -- let some name ← Term.getDeclName? | throwError "could not get declaration name"
   for id in ids.getElems do
     let used ← realizeGlobalConstNoOverloadWithInfo id
     let ty := (← getConstInfo used).type
@@ -81,7 +87,8 @@ elab "blueprint_using" " [" ids:ident,* "]" : tactic => do
       return g''
 
 /--
-`sorry_using [a, b]` is the same as `sorry`, but adds `a` and `b` as dependencies to the blueprint metadata.
+`sorry_using [a, b]` is the same as `sorry`, but adds `a` and `b` as dependencies for the blueprint metadata.
+
 It is basically similar to `let := a; let := b; sorry`.
 -/
 macro (name := tacticSorryUsing) "sorry_using" " [" ids:ident,* "]" : tactic =>

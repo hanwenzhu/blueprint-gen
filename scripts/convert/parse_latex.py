@@ -106,13 +106,18 @@ def convert_ref_to_texttt(source: str, label_to_node: dict[str, Node]):
     r"""Convert \ref{abc} to \texttt{abc}.
 
     This is so that in the output, [\[long_theorem_name\]](#long_theorem_name) becomes
-    `long_theorem_name`, and the latter can be automatically converted to links/refs by both
-    doc-gen4 and blueprint-gen.
+    `long_theorem_name` instead, and the latter can be automatically converted to
+    links/refs by both doc-gen4 and blueprint-gen.
     """
     def replace_ref(match):
         label = match.group(1)
         if label not in label_to_node:
-            return match.group(0)
+            if "_" in label:
+                # If the label contains an underscore, we assume it is still a Lean name and wrap it in \texttt,
+                # even though it is not in the blueprint graph.
+                return f"\\texttt{{{label}}}"
+            else:
+                return match.group(0)
         return f"\\texttt{{{label_to_node[label].name}}}"
     source = re.sub(r"\\ref\s*\{([^\}]*)\}", replace_ref, source)
     source = source.strip()
@@ -225,7 +230,7 @@ def parse_nodes(source: str) -> tuple[list[Node], dict[str, list[str]]]:
             if i - 1 in match_idx_to_node:
                 proved = match_idx_to_node[i - 1]
             else:
-                logger.warning(f"Cannot determine the statement proved by: {source}")
+                logger.warning(f"Cannot determine the statement proved by: {node_source}")
                 continue
 
         proved.proof = NodePart(lean_ok=source_info.leanok, text=node_source, uses=set(source_info.uses), latex_env=env)

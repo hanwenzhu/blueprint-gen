@@ -45,19 +45,34 @@ register_option blueprint.bracketedCitations : Bool := {
   descr := "Whether to register square-bracketed content as citations (e.g. `[taylorwiles]`)."
 }
 
+register_option blueprint.refCommand : String := {
+  defValue := "ref",
+  descr := "The LaTeX command to use for references (e.g. `ref` or `cref`)."
+}
+
 register_option blueprint.citeCommand : String := {
   defValue := "cite",
   descr := "The LaTeX command to use for citations (e.g. `cite` or `citep`)."
 }
 
-/-- Convert citations (e.g. `[taylorwiles]`) to \citeorbracket{taylorwiles} commands. -/
-partial def postprocessMarkdown (s : String) (opts : Options) : String :=
-  if !blueprint.bracketedCitations.get opts then
-    s
+variable {m} [Monad m] [MonadOptions m]
+
+/-- Escapes a string in LaTeX for all LaTeX environments (text, math, leancode, links, etc.). -/
+def escapeForLatexBasic (s : String) : String :=
+  s.replace "#" "\\#" |>.replace "%" "\\%"
+
+/-- Escapes a string in LaTeX for text. -/
+def escapeForLatexText (s : String) : String :=
+  escapeForLatexBasic s |>.replace "_" "\\_" |>.replace "^" "\\^{}"
+
+/-- Escape `#` and convert citations (e.g. `[taylorwiles]`) to \citeorbracket{taylorwiles} commands. -/
+partial def postprocessMarkdownText (s : String) : m String := do
+  let s := escapeForLatexText s
+  if !blueprint.bracketedCitations.get (← getOptions) then
+    return s
   else
-    let citeCommand := blueprint.citeCommand.get opts
-    (findAllEnclosed s '[' ']').foldl (init := s) fun s bracketed =>
-      s.replace s!"[{bracketed}]" (s!"\\{citeCommand}" ++ "{" ++ bracketed ++ "}")
+    return (findAllEnclosed s '[' ']').foldl (init := s) fun s bracketed =>
+      s.replace s!"[{bracketed}]" (s!"\\citeorbracket" ++ "{" ++ bracketed ++ "}")
 where
   findAllEnclosed (s : String) (bracketStart bracketEnd : Char) (i : String.Pos := 0) (ret : Array String := ∅) : Array String :=
     let lps := s.posOfAux bracketStart s.endPos i + ⟨1⟩
@@ -78,15 +93,19 @@ def removeNameFirstComponent : Name → Option Name
   | .num p i => removeNameFirstComponent p |>.map fun p => .num p i
   | .anonymous => none
 
+open MD4Lean in
+def parseMarkdown (markdown : String) : Option MD4Lean.Document :=
+  parse markdown (parserFlags := MD_DIALECT_GITHUB ||| MD_FLAG_LATEXMATHSPANS ||| MD_FLAG_NOHTML)
+
 /-- Parse and convert markdown to LaTeX using MD4Lean with postprocessing steps as above. -/
-def markdownToLatex (markdown : String) : CoreM Latex :=
-  match MD4Lean.parse markdown with
+partial def markdownToLatex (markdown : String) : m Latex :=
+  match parseMarkdown markdown with
   | none => return markdown
   | some doc => documentToLatex doc
 where
-  documentToLatex (doc : MD4Lean.Document) : CoreM Latex := do
+  documentToLatex (doc : MD4Lean.Document) : m Latex := do
     return "\n\n".intercalate (← doc.blocks.mapM blockToLatex).toList
-  blockToLatex (block : MD4Lean.Block) : CoreM Latex := do
+  blockToLatex (block : MD4Lean.Block) : m Latex := do
     match block with
     | .p texts =>
       return String.join (← texts.mapM textToLatex).toList
@@ -102,10 +121,10 @@ where
     | .html content => return String.join content.toList
     | .blockquote content => return "\\begin{quote}" ++ "\n\n".intercalate (← content.mapM blockToLatex).toList ++ "\\end{quote}"
     | .table _head _body => return "[blueprint-gen: table not supported yet]"
-  textToLatex (text : MD4Lean.Text) : CoreM Latex := do
+  textToLatex (text : MD4Lean.Text) : m Latex := do
     match text with
     | .normal content | .br content | .softbr content | .entity content =>
-      return postprocessMarkdown content (← getOptions)
+      postprocessMarkdownText content
     | .nullchar => return ""
     | .em texts => return "\\emph{" ++ String.join (← texts.mapM textToLatex).toList ++ "}"
     | .strong texts => return "\\textbf{" ++ String.join (← texts.mapM textToLatex).toList ++ "}"
@@ -113,17 +132,16 @@ where
     | .a href _title _isAuto texts => return "\\href{" ++ String.join (href.map attrTextToLatex).toList ++ "}{" ++ String.join (← texts.mapM textToLatex).toList ++ "}"
     | .img src _title _alt => return "\\includegraphics{" ++ String.join (src.map attrTextToLatex).toList ++ "}"
     -- \leancode converts inline code to \ref where possible. If not a valid reference, this defaults to \texttt{content} (see `latexPreamble`).
-    | .code content => return "\\leancode{" ++ String.join content.toList ++ "}"
+    | .code content => return "\\leancode{" ++ String.join (content.toList.map escapeForLatexBasic) ++ "}"
     | .del texts => return "\\st{" ++ String.join (← texts.mapM textToLatex).toList ++ "}"
-    | .latexMath content => return "$" ++ String.join content.toList ++ "$"
-    | .latexMathDisplay content => return "$$" ++ String.join content.toList ++ "$$"
+    | .latexMath content => return "$" ++ String.join (content.toList.map escapeForLatexBasic) ++ "$"
+    | .latexMathDisplay content => return "$$" ++ String.join (content.toList.map escapeForLatexBasic) ++ "$$"
     | .wikiLink target texts => return "\\href{" ++ String.join (target.map attrTextToLatex).toList ++ "}{" ++ String.join (← texts.mapM textToLatex).toList ++ "}"
   attrTextToLatex (attrText : MD4Lean.AttrText) : Latex :=
     match attrText with
-    | .normal content => content
-    | .entity content => content
+    | .normal content | .entity content => escapeForLatexBasic content
     | .nullchar => ""
-  itemToLatex (item : MD4Lean.Li MD4Lean.Block) : CoreM Latex := do
+  itemToLatex (item : MD4Lean.Li MD4Lean.Block) : m Latex := do
     match item with
     | .li _isTask _taskChar _taskMarkOffset blocks =>
       return "\\item " ++ "\n\n".intercalate (← blocks.mapM blockToLatex).toList
@@ -134,8 +152,7 @@ def moduleToRelPath (module : Name) (ext : String) : System.FilePath :=
 def libraryToRelPath (library : Name) (ext : String) : System.FilePath :=
   System.mkFilePath ["library", library.toString (escape := false)] |>.addExtension ext
 
-def NodePart.toLatex (part : NodePart) (title : Option String) (additionalContent : String) : CoreM Latex := do
-  let env ← getEnv
+def NodePart.toLatex (part : NodePart) (title : Option String) (additionalContent : String) : m Latex := do
   let mut out := ""
   out := out ++ "\\begin{" ++ part.latexEnv ++ "}"
   if let some title := title then
@@ -143,20 +160,17 @@ def NodePart.toLatex (part : NodePart) (title : Option String) (additionalConten
   if part.leanOk then
     out := out ++ "\\leanok{}"
   if !part.uses.isEmpty then
-    -- Filter to used constants that are tagged with `[blueprint]`
-    let uses := part.uses.filter fun c => (blueprintExt.find? env c).isSome
-    out := out ++ "\\uses{" ++ ",".intercalate (uses.toList.map (·.toString)) ++ "}"
+    out := out ++ "\\uses{" ++ ",".intercalate (part.uses.toList.map (·.toString)) ++ "}"
   out := out ++ (← markdownToLatex part.text)
   out := out ++ additionalContent
   out := out ++ "\\end{" ++ part.latexEnv ++ "}"
   return out
 
-def NodeWithPos.toLatex (node : NodeWithPos) : CoreM Latex := do
+def NodeWithPos.toLatex (node : NodeWithPos) : m Latex := do
   -- position string as annotation
-  let rangeStr := match node.location with
-    | none => ""
-    | some location => s!":{location.range.pos.line}.{location.range.pos.column}-{location.range.endPos.line}.{location.range.endPos.column}"
-  let posStr := s!"{node.file}{rangeStr}"
+  let posStr := match node.file, node.location with
+    | some file, some location => s!"{file}:{location.range.pos.line}.{location.range.pos.column}-{location.range.endPos.line}.{location.range.endPos.column}"
+    | _, _ => ""
 
   let mut addLatex := ""
   addLatex := addLatex ++ "\\lean{" ++ node.name.toString ++ "}"
@@ -174,20 +188,68 @@ def NodeWithPos.toLatex (node : NodeWithPos) : CoreM Latex := do
     let proofLatex ← proof.toLatex none ""
     return statementLatex ++ proofLatex
 
-def NodeWithPos.toLatexHeader (node : NodeWithPos) : CoreM Latex := do
+def NodeWithPos.toLatexHeader (node : NodeWithPos) : m Latex := do
   let latex ← node.toLatex
   return "\\newleannode{" ++ node.name.toString ++ "}{" ++ latex ++ "}"
 
-def BlueprintContent.toLatex : BlueprintContent → CoreM Latex
+def BlueprintContent.toLatex : BlueprintContent → m Latex
   | .node n => return "\\inputleannode{" ++ n.name.toString ++ "}"
   | .modDoc d => markdownToLatex d.doc
 
-private def moduleToLatexHeaderAux (module : Name) (contents : Array BlueprintContent) : CoreM Latex := do
+def latexPreamble : m Latex := do
+  let refCommand := blueprint.refCommand.get (← getOptions)
+  let citeCommand := blueprint.citeCommand.get (← getOptions)
+  return "%%% THIS FILE IS AUTO-GENERATED BY BLUEPRINT-GEN. %%%
+
+%%% Macro definitions for \\inputleannode, \\inputleanmodule %%%
+
+\\makeatletter
+
+% \\newleannode{name}{latex} defines a new Lean node
+\\providecommand{\\newleannode}[2]{%
+  \\expandafter\\gdef\\csname leannode@#1\\endcsname{#2}}
+% \\inputleannode{name} inputs a Lean node
+\\providecommand{\\inputleannode}[1]{%
+  \\csname leannode@#1\\endcsname}
+
+% \\leancode{name} references a Lean node
+\\providecommand{\\leancode}[1]{%
+  \\@ifundefined{leannode@#1}{%
+    \\texttt{\\detokenize{#1}}}{%
+    \\" ++ refCommand ++ "{#1}}}
+
+% \\citeorbracket{name} tries to \\cite and falls back to brackets
+\\providecommand{\\citeorbracket}[1]{%
+  \\@ifundefined{b@#1}{%
+    {[#1]}}{%
+    \\" ++ citeCommand ++ "{#1}}}
+% Define a macro that only executes \\nocite{*} once
+\\providecommand{\\nociteall}{%
+  \\@ifundefined{done@nociteall}{%
+    \\nocite{*}%
+    \\gdef\\done@nociteall{}%
+  }{}%
+}
+\\nociteall
+
+% \\newleanmodule{module}{latex} defines a new Lean module
+\\providecommand{\\newleanmodule}[2]{%
+  \\expandafter\\gdef\\csname leanmodule@#1\\endcsname{#2}}
+% \\inputleanmodule{module} inputs a Lean module
+\\providecommand{\\inputleanmodule}[1]{%
+  \\csname leanmodule@#1\\endcsname}
+
+\\makeatother
+
+%%% Start of main content %%%"
+
+private def moduleToLatexHeaderAux (module : Name) (contents : Array BlueprintContent) : m Latex := do
   let nodeHeaders ← contents.filterMapM fun
     | .node n => some <$> n.toLatexHeader
     | _ => pure none
   let moduleLatex ← contents.mapM BlueprintContent.toLatex
-  return "\n\n".intercalate nodeHeaders.toList ++ "\n\n" ++
+  let preamble ← latexPreamble
+  return preamble ++ "\n\n" ++ "\n\n".intercalate nodeHeaders.toList ++ "\n\n" ++
     "\\newleanmodule{" ++ module.toString ++ "}{" ++ "\n\n".intercalate moduleLatex.toList ++ "}"
 
 /-- Convert imported module to LaTeX. -/
@@ -200,41 +262,6 @@ def mainModuleToLatexHeader : CoreM Latex := do
   let contents ← getMainModuleBlueprintContents
   moduleToLatexHeaderAux (← getMainModule) contents
 
-def latexPreamble : Latex := "
-%%% THIS FILE IS AUTO-GENERATED BY BLUEPRINT-GEN. %%%
-
-%%% Macro definitions for \\inputleannode, \\inputleanmodule %%%
-
-\\makeatletter
-
-% \\newleannode{name}{latex} defines a new Lean node
-\\providecommand{\\newleannode}[2]{%
-  \\expandafter\\gdef\\csname leannode@#1\\endcsname{#2}}
-% \\inputleannode{name} inputs a Lean node
-\\providecommand{\\inputleannode}[1]{%
-  \\@ifundefined{leannode@#1}{}{%
-    \\csname leannode@#1\\endcsname}}
-% \\leancode{name} references a Lean node
-\\providecommand{\\leancode}[1]{%
-  \\@ifundefined{leannode@#1}{%
-    \\texttt{#1}}{%
-    \\ref{#1}}}
-
-% \\newleanmodule{module}{latex} defines a new Lean module
-\\providecommand{\\newleanmodule}[2]{%
-  \\expandafter\\gdef\\csname leanmodule@#1\\endcsname{#2}}
-% \\inputleanmodule{module} inputs a Lean module
-\\providecommand{\\inputleanmodule}[1]{%
-  \\csname leanmodule@#1\\endcsname}
-
-\\makeatother
-
-%%% Start of main content %%%
-"
-
-def Latex.toString (latex : Latex) : String :=
-  latexPreamble ++ latex
-
 /-- Shows the blueprint LaTeX of the current module for debugging. -/
 syntax (name := show_blueprint) "#show_blueprint" (ppSpace ident)? : command
 
@@ -242,13 +269,13 @@ open Elab Command in
 @[command_elab show_blueprint] def elabShowBlueprint : CommandElab
   | `(command| #show_blueprint) => do
     let latex ← liftCoreM mainModuleToLatexHeader
-    logInfo m!"Exported blueprint LaTeX of current module:\n\n{latex.toString}"
+    logInfo m!"Exported blueprint LaTeX of current module:\n\n{latex}"
   | `(command| #show_blueprint $mod:ident) => do
     let mod := mod.getId
     if (← getEnv).getModuleIdx? mod |>.isNone then
       throwError "Unknown module {mod}"
     let latex ← liftCoreM <| moduleToLatexHeader mod
-    logInfo m!"Exported blueprint LaTeX of module {mod}:\n\n{latex.toString}"
+    logInfo m!"Exported blueprint LaTeX of module {mod}:\n\n{latex}"
   | _ => throwUnsupportedSyntax
 
 end ToLatex
@@ -322,7 +349,7 @@ def outputResultsWithExt (basePath : System.FilePath) (module : Name) (content :
 
 /-- Write `latex` to the appropriate blueprint tex file. -/
 def outputLatexResults (basePath : System.FilePath) (module : Name) (latex : Latex) : IO Unit := do
-  let content := latex.toString
+  let content := latex
   outputResultsWithExt basePath module content "tex"
 
 /-- Write `json` to the appropriate blueprint json file. -/
@@ -335,11 +362,10 @@ def outputLibraryLatex (basePath : System.FilePath) (library : Name) (modules : 
   FS.createDirAll basePath
   let latex : Latex := "\n\n".intercalate
     (modules.map fun mod => "\\input{" ++ (basePath / moduleToRelPath mod "tex").toString ++ "}").toList
-  let content := latex.toString
   let filePath := basePath / libraryToRelPath library "tex"
   if let some d := filePath.parent then
     FS.createDirAll d
-  FS.writeFile filePath content
+  FS.writeFile filePath latex
 
 /-- Write to an appropriate index json file containing paths to json files of all modules in a library. -/
 def outputLibraryJson (basePath : System.FilePath) (library : Name) (modules : Array Name) : IO Unit := do

@@ -5,8 +5,6 @@ package «blueprint-gen»
 
 lean_lib BlueprintGen
 
-lean_lib Example
-
 @[default_target]
 lean_exe «blueprint-gen» where
   root := `Main
@@ -16,11 +14,6 @@ lean_exe «blueprint-gen» where
 lean_exe add_position_info where
   root := `scripts.convert.add_position_info
   supportInterpreter := true
-
-lean_exe convert where
-  root := `scripts.convert.main
-  supportInterpreter := true
-  needs := #[add_position_info]
 
 require batteries from git
   "https://github.com/leanprover-community/batteries" @ "v4.24.0-rc1"
@@ -106,3 +99,20 @@ package_facet blueprintJson (pkg : Package) : Unit := do
   let libJobs := Job.collectArray <| ← pkg.leanLibs.mapM (fetch <| ·.facet `blueprintJson)
   let _ ← libJobs.await
   return .nil
+
+/-- A facet to convert an existing blueprint to blueprint-gen format,
+modifying the Lean and LaTeX source files in place. -/
+library_facet blueprintConvert (lib : LeanLib) : Unit := do
+  let blueprintGen ← BlueprintGen.get
+  let convertScript := blueprintGen.srcDir / "scripts" / "convert" / "main.py"
+  let rootMods := lib.rootModules
+  let libJob ← lib.leanArts.fetch
+  libJob.bindM fun _ => do
+    logInfo "Calling Python script to convert blueprint to blueprint-gen format"
+    proc {
+      cmd := "python3"
+      args := #[convertScript.toString, "--modules"] ++ rootMods.map (·.name.toString)
+      env := ← getAugmentedEnv
+      cwd := lib.srcDir
+    }
+    return .nil

@@ -64,4 +64,26 @@ def Node.toNodeWithPos (node : Node) : CoreM NodeWithPos := do
 /-- Environment extension that stores the nodes of the blueprint. -/
 initialize blueprintExt : NameMapExtension Node ← registerNameMapExtension _
 
+section ResolveConst
+
+register_option blueprint.ignoreUnknownConstants : Bool := {
+  defValue := .false,
+  descr := "Whether to ignore unknown constants in the `uses` and `proofUses` options of the `blueprint` attribute."
+}
+
+/--
+Resolves an identifier using `realizeGlobalConstNoOverloadWithInfo`.
+Ignores unknown constants if `blueprint.ignoreUnknownConstants` is true (default: false).
+-/
+def tryResolveConst (id : Ident) : CoreM Name := do
+  if blueprint.ignoreUnknownConstants.get (← getOptions) then
+    try
+      realizeGlobalConstNoOverloadWithInfo id
+    catch _ =>
+      return id.getId
+  else
+    realizeGlobalConstNoOverloadWithInfo id
+
+end ResolveConst
+
 end BlueprintGen

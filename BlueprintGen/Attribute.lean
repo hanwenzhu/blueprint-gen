@@ -15,9 +15,9 @@ structure Config where
   /-- The proof of the node in text. Uses proof docstrings if not present. -/
   proof : Option String := none
   /-- The set of nodes that this node depends on. Infers from the constant if not present. -/
-  uses : Option (Array Name) := none
+  uses : Array Name := #[]
   /-- The set of nodes that the proof of this node depends on. Infers from the constant's value if not present. -/
-  proofUses : Option (Array Name) := none
+  proofUses : Array Name := #[]
   /-- The surrounding environment is not ready to be formalized, typically because it requires more blueprint work. -/
   notReady : Bool := false
   /-- A GitHub issue number where the surrounding definition or statement is discussed. -/
@@ -45,7 +45,23 @@ syntax blueprintOption := "("
   blueprintLatexEnvOption ")"
 syntax blueprintOptions := (ppSpace str)? (ppSpace blueprintOption)*
 
-/-- The `blueprint` attribute tags a constant to add to the blueprint. -/
+/--
+The `blueprint` attribute tags a constant to add to the blueprint.
+
+You may optionally add:
+- `"Title"`: The title of the node in LaTeX.
+- `hasProof := true`: If the node has a proof (default: true if the node is a theorem).
+- `proof := /-- ... -/`: The proof of the node in text.
+- `uses := [a, b]`: The dependencies of the node (default: inferred from the used constants).
+- `proofUses := [a, b]`: The dependencies of the proof of the node (default: inferred from the used constants).
+- `notReady := true`: Whether the node is not ready.
+- `discussion := 123`: The discussion issue number of the node.
+- `latexEnv := "lemma"`: The LaTeX environment to use for the node (default: "theorem" or "definition").
+
+For more information, see [blueprint-gen](https://github.com/hanwenzhu/blueprint-gen).
+
+Use `blueprint?` to show the raw data of the added node.
+-/
 syntax (name := blueprint) "blueprint" "?"? blueprintOptions : attr
 
 @[inherit_doc blueprint]
@@ -67,10 +83,10 @@ def elabBlueprintConfig : Syntax → CoreM Config
         let proof := (← getDocStringText doc).trim
         config := { config with proof }
       | `(blueprintOption| (uses := [$[$ids],*])) =>
-        let uses ← ids.mapM realizeGlobalConstNoOverloadWithInfo
+        let uses ← ids.mapM tryResolveConst
         config := { config with uses }
       | `(blueprintOption| (proofUses := [$[$ids],*])) =>
-        let proofUses ← ids.mapM realizeGlobalConstNoOverloadWithInfo
+        let proofUses ← ids.mapM tryResolveConst
         config := { config with proofUses }
       | `(blueprintOption| (notReady := true)) =>
         config := { config with notReady := .true }
@@ -84,6 +100,7 @@ def elabBlueprintConfig : Syntax → CoreM Config
     return config
   | _ => throwUnsupportedSyntax
 
+/-- Whether a node has a proof part. -/
 def hasProof (name : Name) (cfg : Config) : CoreM Bool := do
   return cfg.hasProof.getD (cfg.proof.isSome || wasOriginallyTheorem (← getEnv) name)
 
@@ -97,30 +114,34 @@ def usedConstants (name : Name) : CoreM (NameSet × NameSet) := do
     | some value => value.getUsedConstantsAsSet
     | none => ∅
 
-  let statementUsed := typeUsed
-
-  return (statementUsed, valueUsed \ statementUsed.erase ``sorryAx)
+  return (typeUsed, valueUsed \ typeUsed.erase ``sorryAx)
 
 def mkStatementPart (name : Name) (cfg : Config) (hasProof : Bool) (used : NameSet) :
     CoreM NodePart := do
   let env ← getEnv
-  let uses := cfg.uses.getD (used.filter fun c => (blueprintExt.find? env c).isSome).toArray
+  -- Used constants = constants specified by `uses :=` + blueprint constants used in the statement
+  let uses := used.filter fun c => (blueprintExt.find? env c).isSome
+  let uses := cfg.uses.foldl (·.insert ·) uses
+  -- Use docstring for statement text
+  let statement := ((← findSimpleDocString? env name).getD "").trim
   return {
     leanOk := !used.contains ``sorryAx
-    text := ((← findSimpleDocString? env name).getD "").trim
-    uses
+    text := statement
+    uses := uses.toArray
     latexEnv := cfg.latexEnv.getD (if hasProof then "theorem" else "definition")
   }
 
 def mkProofPart (name : Name) (cfg : Config) (used : NameSet) : CoreM NodePart := do
   let env ← getEnv
-  let uses := cfg.proofUses.getD (used.filter fun c => (blueprintExt.find? env c).isSome).toArray
+  -- Used constants = constants specified by `proofUses :=` + blueprint constants used in the proof
+  let uses := used.filter fun c => (blueprintExt.find? env c).isSome
+  let uses := cfg.proofUses.foldl (·.insert ·) uses
   -- Use proof docstring for proof text
   let proof := cfg.proof.getD ("\n\n".intercalate (getProofDocString env name).toList)
   return {
     leanOk := !used.contains ``sorryAx
     text := proof
-    uses
+    uses := uses.toArray
     latexEnv := "proof"
   }
 
@@ -138,6 +159,7 @@ def mkNode (name : Name) (cfg : Config) : CoreM Node := do
 initialize registerBuiltinAttribute {
     name := `blueprint
     descr := "Adds a node to the blueprint"
+    applicationTime := .afterCompilation
     add := fun name stx kind => do
       unless kind == AttributeKind.global do throwError "invalid attribute 'blueprint', must be global"
       let cfg ← elabBlueprintConfig stx

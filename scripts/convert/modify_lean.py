@@ -5,7 +5,7 @@ import re
 
 from loguru import logger
 
-from common import Node, NodeWithPos, Position, DeclarationRange, DeclarationLocation
+from common import Node, NodeWithPos, Position, DeclarationRange, DeclarationLocation, make_docstring
 
 
 def split_declaration(source: str, pos: Position, end_pos: Position):
@@ -32,17 +32,6 @@ def insert_docstring_and_attribute(decl: str, new_docstring: str, new_attr: str)
     and corner cases would be fixed manually.
     """
 
-    global warned_to_additive
-    if decl.startswith("to_additive") and not warned_to_additive:
-        warned_to_additive = True
-        logger.warning(
-            "Encountered declaration(s) generated from @[to_additive]. " +
-            "This script currently will result in Lean syntax error. You may decide to:\n" +
-            "- Put the additive declaration in the blueprint by `attribute [blueprint] additive_name`\n" +
-            "- Put the multiplicative declaration in the blueprint by `@[to_additive, blueprint]`\n" +
-            "- Put both in the blueprint by `@[to_additive (attr := blueprint)]`"
-        )
-
     # open ... in, omit ... in, include ... in, etc (assuming one-line, ending in newline, no interfering comments, etc)
     match = re.search(r"^(?:[a-zA-Z_]+.*?in\n)+", decl)
     if match:
@@ -53,10 +42,10 @@ def insert_docstring_and_attribute(decl: str, new_docstring: str, new_attr: str)
 
     match = re.search(r"^\s*/--(.*?)-/\s*", decl, flags=re.DOTALL)
     if match:
-        docstring = f"\n{new_docstring}\n\n{match.group(1).strip()}\n"
+        docstring = f"{new_docstring}\n\n{match.group(1).strip()}"
         decl = decl.removeprefix(match.group(0))
     else:
-        docstring = f"\n{new_docstring}\n"
+        docstring = new_docstring
 
     match = re.search(r"^\s*@\[(.*?)\]\s*", decl, flags=re.DOTALL)
     if match:
@@ -65,7 +54,23 @@ def insert_docstring_and_attribute(decl: str, new_docstring: str, new_attr: str)
     else:
         attrs = new_attr
 
-    return f"{command_modifiers}/--{docstring}-/\n@[{attrs}]\n{decl}"
+    if decl.startswith("to_additive"):
+        global warned_to_additive
+        if not warned_to_additive:
+            warned_to_additive = True
+            logger.warning(
+                "Encountered additive declaration(s) generated from @[to_additive]. " +
+                "This script currently adds a placeholder, which is likely incorrect. You may decide to:\n" +
+                "- Add only the additive declaration in the blueprint by `attribute [blueprint] additive_name`\n" +
+                "- Add only the multiplicative declaration in the blueprint by `@[to_additive, blueprint]`\n" +
+                "- (Current) add both in the blueprint by `@[to_additive (attr := blueprint)]`"
+            )
+        decl = decl.removeprefix("to_additive").strip()
+        if decl:
+            decl = decl + " "
+        return f"to_additive (attr := {attrs}) {decl}{make_docstring(docstring)}"
+
+    return f"{command_modifiers}{make_docstring(docstring)}\n@[{attrs}]\n{decl}"
 
 
 def modify_source(node: Node, file: Path, location: DeclarationLocation):
@@ -84,9 +89,34 @@ def add_blueprint_gen_import(file: Path):
     for i, line in enumerate(lines):
         if line.startswith("import "):
             first_import_index = i
+            break
     lines = lines[:first_import_index] + ["import BlueprintGen\n"] + lines[first_import_index:]
     source = "".join(lines)
     file.write_text(source)
+
+
+def topological_sort(data: list[tuple[Node, str]]) -> list[tuple[Node, str]]:
+    name_to_node: dict[str, tuple[Node, str]] = {node.name: (node, value) for node, value in data}
+    
+    visited: set[str] = set()
+    result: list[tuple[Node, str]] = []
+
+    def visit(name: str):
+        if name in visited:
+            return
+        visited.add(name)
+
+        node, value = name_to_node[name]
+        uses = node.statement.uses | (node.proof.uses if node.proof is not None else set())
+        for used in uses:
+            if used in name_to_node:
+                visit(used)
+        result.append((node, value))
+
+    for node, _ in data:
+        visit(node.name)
+
+    return result
 
 
 def write_blueprint_attributes(nodes: list[NodeWithPos], modules: list[str]):
@@ -108,10 +138,6 @@ def write_blueprint_attributes(nodes: list[NodeWithPos], modules: list[str]):
             # These nodes are in the blueprint but not in the project itself
             # Typically, these are \mathlibok nodes
             upstream_nodes.append(node)
-            # logger.warning(
-            #     f"Blueprint node in {node.location.module} needs to be manually added:\n" +
-            #     f"attribute [{node.to_lean_attribute()}] {node.name}"
-            # )
             continue
 
         modify_source(node, Path(node.file), node.location)
@@ -122,18 +148,25 @@ def write_blueprint_attributes(nodes: list[NodeWithPos], modules: list[str]):
 
     # The extra Lean source to be inserted somewhere in the project,
     # containing (1) upstream (\mathlibok) nodes and (2) informal-only nodes not yet in Lean
-    extra_lean: str = ""
+    extra_nodes: list[tuple[Node, str]] = []
     for node in upstream_nodes:
-        extra_lean += f"attribute [{node.to_lean_attribute()}] {node.name}\n\n"
+        extra_nodes.append((node, f"attribute [{node.to_lean_attribute()}] {node.name}"))
     for node in nodes:
         if not node.has_lean:
-            extra_lean += f"/-- {node.statement.text} -/\n"
-            extra_lean += f"@[{node.to_lean_attribute}]\n"
+            lean = f"{make_docstring(node.statement.text)}\n"
+            lean += f"@[{node.to_lean_attribute(add_proof_text=False, add_uses=False)}]\n"
             if node.proof is None:
-                extra_lean += f"def {node.name} : (sorry : Type) := sorry\n\n"
+                lean += f"def {node.name} : (sorry : Type) :=\n  sorry_using [{', '.join(node.statement.uses)}]"
             else:
-                extra_lean += f"theorem {node.name} : (sorry : Prop) := sorry\n\n"
+                lean += f"theorem {node.name} : (sorry_using [{', '.join(node.proof.uses)}] : Prop) := by\n  {make_docstring(node.proof.text, indent=2)}\n  sorry_using [{', '.join(node.statement.uses)}]"
+            extra_nodes.append((node, lean))
+    
+    extra_nodes = topological_sort(extra_nodes)
 
-    if extra_lean:
+    if extra_nodes:
         logger.warning("The Lean code in `extra_nodes.lean` needs to be manually added to your project.")
-        Path("extra_nodes.lean").write_text(extra_lean)
+        imports = "import Mathlib\nimport BlueprintGen"
+        Path("extra_nodes.lean").write_text(
+            imports + "\n\n" +
+            "\n\n".join(lean for _, lean in extra_nodes)
+        )

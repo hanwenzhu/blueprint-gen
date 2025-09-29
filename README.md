@@ -79,7 +79,7 @@ With depedency graph:
 
 After tagging with `@[blueprint]`, blueprint-gen will:
 
-1. Extract the statement and proof of a node from docstrings.
+1. Extract the statement and proof of a node from docstrings. The Markdown docstrings will be automatically parsed and converted to LaTeX.
 2. Infer the dependencies of a node from the constants used in the statement or proof.
 3. Infer whether the statement or proof is ready (i.e. `\leanok`) from whether it is sorry-free.
 4. Add the node to the generated blueprint.
@@ -125,19 +125,20 @@ You may also want to put this in the GitHub Actions workflow typically at `.gith
 
 ## Converting from existing blueprint format
 
-With a project that uses the existing leanblueprint format:
+With a project that uses the existing leanblueprint format, there is a primitive script that tries to convert to the blueprint-gen format.
 
-First go to a clean branch without any uncomitted changes, to prevent overwriting any work you have done.
+First go to a clean branch **without any uncomitted changes**, to prevent overwriting any work you have done.
 
 You can then convert to blueprint-gen format by adding `blueprint-gen` as a dependency to lakefile, run `lake update blueprint-gen`, and then run:
 
 ```sh
-# TODO, make this into lake exe
 # At the project root
-python .lake/packages/blueprint-gen/scripts/convert/main.py --modules {root modules of your project}
+lake build {library name}:blueprintConvert
 ```
 
-Then you would need to fix the errors in the converted files. You would also need to manually add the nodes that are not in the project itself (typically, `\mathlibok` nodes) to the blueprint, which will be saved to `extra_nodes.lean`.
+where `{library name}` is the name of the `lean_lib` (in lakefile) that contains the blueprint nodes.
+
+Note that this conversion is not perfect, and for large projects it may end in some small syntax errors. You would need to fix the errors in the converted files. You would also need to manually add the nodes that are not in the project itself (typically, `\mathlibok` nodes) to the blueprint, which will be saved to `extra_nodes.lean`.
 
 ## Extracting nodes in JSON
 
@@ -148,3 +149,7 @@ lake build :blueprintJson
 ```
 
 The output will be in `.lake/build/blueprint`.
+
+## TODO
+
+- Currently the LaTeX output (and hence PDF / web outputs) are only in a state of barely working, because it is difficult to translate Markdown to LaTeX. The immediate next improvement will be to explore supporting Verso docstrings (#10307), and more specifically, for statement / proof docstrings using `doc.verso`, to generate the LaTeX directly from Verso instead of converting to Markdown and then to LaTeX. One roadblock here is support for citations, which we may have to wait until there is a good solution (e.g. via an extension).

@@ -29,6 +29,14 @@ class NodePart(BaseSchema):
     uses: set[str]
     latex_env: str
 
+def make_docstring(text: str, indent: int = 0) -> str:
+    text = text.strip()
+    text = text.replace("\n", f"\n{' ' * indent}")
+    if "\n" in text:
+        return f"/--\n{' ' * indent}{text}\n{' ' * indent}-/"
+    else:
+        return f"/-- {text} -/"
+
 class Node(BaseSchema):
     name: str  # Lean identifier (unique)
     statement: NodePart
@@ -37,15 +45,18 @@ class Node(BaseSchema):
     discussion: Optional[int]
     title: Optional[str]
 
-    def to_lean_attribute(self) -> str:
+    def to_lean_attribute(self, add_proof_text: bool = True, add_uses: bool = True) -> str:
         configs = []
         # See BlueprintGen/Attribute.lean for the options
         if self.title:
             configs.append(_quote(self.title))
-        configs.append(f"(uses := [{', '.join(self.statement.uses)}])")
+        if add_uses:
+            configs.append(f"(uses := [{', '.join(self.statement.uses)}])")
         if self.proof is not None:
-            configs.append(f"(proof := /-- {self.proof.text} -/)")
-            configs.append(f"(proofUses := [{', '.join(self.proof.uses)}])")
+            if add_proof_text:
+                configs.append(f"(proof := {make_docstring(self.proof.text, indent=2)})")
+            if add_uses:
+                configs.append(f"(proofUses := [{', '.join(self.proof.uses)}])")
         if self.not_ready:
             configs.append("(notReady := true)")
         if self.discussion:
@@ -96,6 +107,10 @@ def pandoc_convert_latex_to_markdown(latex: str) -> str:
         "markdown-raw_html-raw_attribute-bracketed_spans-native_divs-native_spans-link_attributes",
         latex
     )
+    # Postprocess outputs of \ref commands
+    # Here, the \ref commands that refer to depgraph nodes were already replaced with \texttt in parse_latex.py
+    # Pandoc converts the rest (e.g. \ref{chapter-label}) to [\[chapter-label\]](#chapter-label), which we convert back to \ref{chapter-label}
+    converted = re.sub(r"\[\\\[(.*?)\\\]\]\(\#\1\)", r"\\ref{\1}", converted)
     # Postprocess citations
     converted = re.sub(r"\[\@(.*?)\]", r"[\1]", converted)
     return converted.strip()
