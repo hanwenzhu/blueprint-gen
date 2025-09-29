@@ -156,6 +156,29 @@ def mkNode (name : Name) (cfg : Config) : CoreM Node := do
     let statement ← mkStatementPart name cfg .false used
     return { cfg with name, statement, proof := none }
 
+/--
+Raises an error if `newName` occurs in the (irreflexive transitive) dependencies of `node`.
+If ignored, this would create a cycle and then an error during `leanblueprint web`.
+
+(Note: this check will only raise an error if `blueprint.ignoreUnknownConstants` is true,
+which may permit cyclic dependencies.)
+-/
+partial def checkCyclicUses (newName : Name) (node : Node) (visited : NameSet := ∅) (path : Array Name := #[]) : CoreM Unit := do
+  let path' := path.push node.name
+  if visited.contains node.name then
+    if path.contains node.name then
+      throwError "cyclic dependency in blueprint:\n  {" uses ".intercalate (path'.toList.map toString)}"
+    else
+      return
+  let visited' := visited.insert node.name
+  for use in node.statement.uses do
+    if let some used := blueprintExt.find? (← getEnv) use then
+      checkCyclicUses newName used visited' path'
+  if let some proof := node.proof then
+    for use in proof.uses do
+      if let some used := blueprintExt.find? (← getEnv) use then
+        checkCyclicUses newName used visited' path'
+
 initialize registerBuiltinAttribute {
     name := `blueprint
     descr := "Adds a node to the blueprint"
@@ -168,6 +191,8 @@ initialize registerBuiltinAttribute {
       let node ← mkNode name cfg
       blueprintExt.add name node
       trace[blueprint] "Blueprint node added:\n{repr node}"
+
+      checkCyclicUses name node
 
       -- pushInfoLeaf <| .ofTermInfo {
       --   elaborator := .anonymous, lctx := {}, expectedType? := none,

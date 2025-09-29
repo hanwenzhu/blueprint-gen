@@ -88,7 +88,24 @@ You may override the constants used in the statement or proof with the `uses` an
 
 To view the generated blueprint data of a node, use `@[blueprint?]`.
 
-## Generating the blueprint
+## Informal-only nodes
+
+At the start of a project, it is possible that not all theorems have their statements formalized in Lean,
+but they nonetheless are in the blueprint.
+For "informal-only" theorems or definitions without formal statements, I recommend writing:
+
+```lean
+/-- Foo implies bar. -/
+@[blueprint] theorem bar_of_foo : (sorry_using [Foo, Bar] : Prop) := by
+  /-- Proof is trivial. -/
+  sorry_using [of_foo, bar_of]
+```
+
+which allows later theorems to reference this theorem.
+
+Alternatively (less recommended), you can use retain informal theorems in the LaTeX blueprint and only write theorems in Lean if they have statement formalized. This will result in "unknown constant" errors in `sorry_using` and `uses` for formal theorems that depend on informal theorems in LaTeX, which you may ignore by `set_option blueprint.ignoreUnknownConstants true`.
+
+## Running blueprint-gen to generate the blueprint
 
 First, install [leanblueprint](https://github.com/PatrickMassot/leanblueprint) and follow the instructions there to set up a blueprint project, if not already done.
 
@@ -127,6 +144,8 @@ You may also want to put this in the GitHub Actions workflow typically at `.gith
 
 With a project that uses the existing leanblueprint format, there is a primitive script that tries to convert to the blueprint-gen format.
 
+Currently, this script depends on a recent version of Python with `loguru` and `pydantic` installed (install by `pip3 install loguru pydantic`).
+
 First go to a clean branch **without any uncomitted changes**, to prevent overwriting any work you have done.
 
 You can then convert to blueprint-gen format by adding `blueprint-gen` as a dependency to lakefile, run `lake update blueprint-gen`, and then run:
@@ -140,6 +159,11 @@ where `{library name}` is the name of the `lean_lib` (in lakefile) that contains
 
 Note that this conversion is not perfect, and for large projects it may end in some small syntax errors. You would need to fix the errors in the converted files. You would also need to manually add the nodes that are not in the project itself (typically, `\mathlibok` nodes) to the blueprint, which will be saved to `extra_nodes.lean`.
 
+Once converted, it is strongly recommended to remove the `uses :=` and `proofUses :=` annoations (and to put them in `sorry_using` if the proof is not yet complete),
+in order to let blueprint-gen automatically infer the dependencies.
+
+(For reference, it took me an afternoon to convert [FLT](https://github.com/ImperialCollegeLondon/FLT) to blueprint-gen format and fix all errors.)
+
 ## Extracting nodes in JSON
 
 To extract the blueprint nodes in machine-readable format, run:
@@ -152,4 +176,4 @@ The output will be in `.lake/build/blueprint`.
 
 ## TODO
 
-- Currently the LaTeX output (and hence PDF / web outputs) are only in a state of barely working, because it is difficult to translate Markdown to LaTeX. The immediate next improvement will be to explore supporting Verso docstrings (#10307), and more specifically, for statement / proof docstrings using `doc.verso`, to generate the LaTeX directly from Verso instead of converting to Markdown and then to LaTeX. One roadblock here is support for citations, which we may have to wait until there is a good solution (e.g. via an extension).
+- Currently the LaTeX output (and hence PDF / web outputs) are only in a state of barely working, because it is difficult to translate Markdown to LaTeX. The immediate next improvement will be to explore supporting Verso docstrings (leanprover/lean4#10307), and more specifically, for statement / proof docstrings using `doc.verso`, to generate the LaTeX directly from Verso instead of converting to Markdown and then to LaTeX. One roadblock here is support for citations, which we may have to wait until there is a good solution (e.g. via an extension) that works for both doc-gen4 and our purpose.
