@@ -79,7 +79,7 @@ With depedency graph:
 
 After tagging with `@[blueprint]`, blueprint-gen will:
 
-1. Extract the statement and proof of a node from docstrings. The Markdown docstrings will be automatically parsed and converted to LaTeX.
+1. Extract the statement and proof of a node from docstrings.
 2. Infer the dependencies of a node from the constants used in the statement or proof.
 3. Infer whether the statement or proof is ready (i.e. `\leanok`) from whether it is sorry-free.
 4. Add the node to the generated blueprint.
@@ -87,6 +87,9 @@ After tagging with `@[blueprint]`, blueprint-gen will:
 You may override the constants used in the statement or proof with the `uses` and `proofUses` options, or with the `using` tactic.
 
 To view the generated blueprint data of a node, use `@[blueprint?]`.
+
+The Markdown [docstrings](https://leanprover-community.github.io/contribute/doc.html) will be automatically parsed and converted to LaTeX.
+Citations are supported using square brackets like `[wiles1995]`, and references to other Lean nodes can be done by inline code like `` `Lean.theorem_name` ``. The output can be modified by the options `blueprint.bracketedCitations`, `blueprint.refCommand` and `blueprint.citeCommand`.
 
 ## Informal-only nodes
 

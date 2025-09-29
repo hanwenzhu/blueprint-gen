@@ -65,22 +65,25 @@ def escapeForLatexBasic (s : String) : String :=
 def escapeForLatexText (s : String) : String :=
   escapeForLatexBasic s |>.replace "_" "\\_" |>.replace "^" "\\^{}"
 
-/-- Escape `#` and convert citations (e.g. `[taylorwiles]`) to \citeorbracket{taylorwiles} commands. -/
+/-- Escape `#` and convert brackets `[taylorwiles]` to `\cite{taylorwiles}` commands. -/
 partial def postprocessMarkdownText (s : String) : m String := do
   let s := escapeForLatexText s
   if !blueprint.bracketedCitations.get (← getOptions) then
     return s
   else
-    return (findAllEnclosed s '[' ']').foldl (init := s) fun s bracketed =>
-      s.replace s!"[{bracketed}]" (s!"\\citeorbracket" ++ "{" ++ bracketed ++ "}")
+    let citeCommand := blueprint.citeCommand.get (← getOptions)
+    let allBracketed := findAllEnclosed s '[' ']' (fun c => c == '[' || c == '(')  -- do not convert the first bracket in `[a][b]` or in `[a](b)`
+    return allBracketed.foldl (init := s) fun s bracketed =>
+      s.replace s!"[{bracketed}]" (s!"\\" ++ citeCommand ++ "{" ++ bracketed ++ "}")
 where
-  findAllEnclosed (s : String) (bracketStart bracketEnd : Char) (i : String.Pos := 0) (ret : Array String := ∅) : Array String :=
+  findAllEnclosed (s : String) (bracketStart bracketEnd : Char) (notFollowedBy : Char → Bool) (i : String.Pos := 0) (ret : Array String := ∅) : Array String :=
     let lps := s.posOfAux bracketStart s.endPos i + ⟨1⟩
     if lps < s.endPos then
       let lpe := s.posOfAux bracketEnd s.endPos lps
-      if lpe < s.endPos then
+      let nextPos := lpe + ⟨1⟩
+      if lpe < s.endPos && (!nextPos.isValid s || !notFollowedBy (s.get nextPos)) then
         let bracketed := Substring.toString ⟨s, lps, lpe⟩
-        findAllEnclosed s bracketStart bracketEnd lpe (ret.push bracketed)
+        findAllEnclosed s bracketStart bracketEnd notFollowedBy lpe (ret.push bracketed)
       else
         ret
     else
@@ -217,20 +220,6 @@ def latexPreamble : m Latex := do
   \\@ifundefined{leannode@#1}{%
     \\texttt{\\detokenize{#1}}}{%
     \\" ++ refCommand ++ "{#1}}}
-
-% \\citeorbracket{name} tries to \\cite and falls back to brackets
-\\providecommand{\\citeorbracket}[1]{%
-  \\@ifundefined{b@#1}{%
-    {[#1]}}{%
-    \\" ++ citeCommand ++ "{#1}}}
-% Define a macro that only executes \\nocite{*} once
-\\providecommand{\\nociteall}{%
-  \\@ifundefined{done@nociteall}{%
-    \\nocite{*}%
-    \\gdef\\done@nociteall{}%
-  }{}%
-}
-\\nociteall
 
 % \\newleanmodule{module}{latex} defines a new Lean module
 \\providecommand{\\newleanmodule}[2]{%
