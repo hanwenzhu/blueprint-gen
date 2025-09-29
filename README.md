@@ -89,7 +89,7 @@ You may override the constants used in the statement or proof with the `uses` an
 To view the generated blueprint data of a node, use `@[blueprint?]`.
 
 The Markdown [docstrings](https://leanprover-community.github.io/contribute/doc.html) will be automatically parsed and converted to LaTeX.
-Citations are supported using square brackets like `[wiles1995]`, and references to other Lean nodes can be done by inline code like `` `Lean.theorem_name` ``. The output can be modified by the options `blueprint.bracketedCitations`, `blueprint.refCommand` and `blueprint.citeCommand`.
+Citations are supported using square brackets like `[wiles1995]`, and references to other Lean nodes can be done by inline code like `` `Lean.theorem_name` ``. The output can be modified by the options `blueprint.bracketedCitations`, `blueprint.refCommand` and `blueprint.citeCommand`. Raw LaTeX is also supported.
 
 ## Informal-only nodes
 
@@ -147,7 +147,7 @@ You may also want to put this in the GitHub Actions workflow typically at `.gith
 
 With a project that uses the existing leanblueprint format, there is a primitive script that tries to convert to the blueprint-gen format.
 
-Currently, this script depends on a recent version of Python with `loguru` and `pydantic` installed (install by `pip3 install loguru pydantic`).
+Currently, this script depends on a recent version of Python with `loguru` and `pydantic` installed (install by `pip3 install loguru pydantic`); and requires an installation of [Pandoc](https://pandoc.org) to be available.
 
 First go to a clean branch **without any uncomitted changes**, to prevent overwriting any work you have done.
 
@@ -160,12 +160,14 @@ lake build {library name}:blueprintConvert
 
 where `{library name}` is the name of the `lean_lib` (in lakefile) that contains the blueprint nodes.
 
-Note that this conversion is not perfect, and for large projects it may end in some small syntax errors. You would need to fix the errors in the converted files. You would also need to manually add the nodes that are not in the project itself (typically, `\mathlibok` nodes) to the blueprint, which will be saved to `extra_nodes.lean`.
+Note that this conversion is not perfect and not idempotent, and for large projects it may end in some small syntax errors. You would need to fix the errors in the converted files. You would also need to manually add the nodes that are not in the project itself (typically, `\mathlibok` nodes) to the blueprint, which will be saved to `extra_nodes.lean`.
 
 Once converted, it is strongly recommended to remove the `uses :=` and `proofUses :=` annoations (and to put them in `sorry_using` if the proof is not yet complete),
 in order to let blueprint-gen automatically infer the dependencies.
 
-(For reference, it took me an afternoon to convert [FLT](https://github.com/ImperialCollegeLondon/FLT) to blueprint-gen format and fix all errors.)
+Docstrings are converted from LaTeX to Markdown using Pandoc. If there is informal description of a theorem in LaTeX and a docstring in Lean, they are concatenated to form the new docstring. You should tidy the existing Markdown docstrings (e.g. wrap code in backticks and math in dollar signs) for better rendering.
+
+(For reference, it took me an afternoon to convert [FLT](https://github.com/ImperialCollegeLondon/FLT) to blueprint-gen format and fix all errors, and it might take longer to fix all warnings and make the output look nicer.)
 
 ## Extracting nodes in JSON
 
