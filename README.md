@@ -180,7 +180,7 @@ in order to let blueprint-gen automatically infer the dependencies.
 
 Docstrings are converted from LaTeX to Markdown using Pandoc. If there is informal description of a theorem in LaTeX and a docstring in Lean, they are concatenated to form the new docstring. You should tidy the existing Markdown docstrings (e.g. wrap code in backticks and math in dollar signs) for better rendering.
 
-(For reference, it took me an afternoon to convert [FLT](https://github.com/ImperialCollegeLondon/FLT) to blueprint-gen format and fix all errors, and it might take longer to fix all warnings and make the output look nicer.)
+(For reference, it takes a few minutes to convert [FLT](https://github.com/ImperialCollegeLondon/FLT) to blueprint-gen format and fix all errors, and it might take longer to fix all warnings and make the output look nicer.)
 
 ## Extracting nodes in JSON
 
