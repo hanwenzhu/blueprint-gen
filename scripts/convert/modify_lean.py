@@ -119,7 +119,7 @@ def topological_sort(data: list[tuple[Node, str]]) -> list[tuple[Node, str]]:
     return result
 
 
-def write_blueprint_attributes(nodes: list[NodeWithPos], modules: list[str]):
+def write_blueprint_attributes(nodes: list[NodeWithPos], modules: list[str], root_file: str):
     # Sort nodes by position, so that we can modify later declarations first
     nodes.sort(
         key=lambda n:
@@ -164,9 +164,17 @@ def write_blueprint_attributes(nodes: list[NodeWithPos], modules: list[str]):
     extra_nodes = topological_sort(extra_nodes)
 
     if extra_nodes:
-        logger.warning("The Lean code in `extra_nodes.lean` needs to be manually added to your project.")
+        extra_nodes_file = Path(root_file)
+        logger.warning(
+            f"Outputting some nodes whose locations could not be determined to\n  {extra_nodes_file}\n" +
+            "You may want to move them to appropriate locations."
+        )
         imports = "import Mathlib\nimport BlueprintGen"
-        Path("extra_nodes.lean").write_text(
-            imports + "\n\n" +
-            "\n\n".join(lean for _, lean in extra_nodes)
+        if extra_nodes_file.exists():
+            existing = extra_nodes_file.read_text()
+        else:
+            existing = ""
+        extra_nodes_file.write_text(
+            existing + imports + "\n\n" +
+            "\n\n".join(lean for _, lean in extra_nodes) + "\n"
         )

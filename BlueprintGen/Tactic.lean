@@ -80,9 +80,13 @@ It is basically the same as `let := a; let := b`.
 elab "blueprint_using" " [" ids:ident,* "]" : tactic => do
   for id in ids.getElems do
     let used ← realizeGlobalConstNoOverloadWithInfo id
-    let ty := (← getConstInfo used).type
+    let info ← getConstInfo used
+    -- Instantiate universe level parameters with 0, to avoid errors
+    let lvls := List.replicate info.numLevelParams levelZero
+    let ty := info.instantiateTypeLevelParams lvls
+    let const := mkConst used lvls
     liftMetaTactic1 fun g => do
-      let g' ← g.define (← Meta.mkFreshBinderNameForTactic `using) ty (mkConst used)
+      let g' ← g.define (← Meta.mkFreshBinderNameForTactic `using) ty const
       let (_, g'') ← g'.intro1P
       return g''
 

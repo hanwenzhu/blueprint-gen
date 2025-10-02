@@ -63,8 +63,8 @@ class Node(BaseSchema):
             configs.append(f"(discussion := {self.discussion})")
         if self.proof is None and self.statement.latex_env != "definition" or self.proof is not None and self.statement.latex_env != "theorem":
             configs.append(f"(latexEnv := {_quote(self.statement.latex_env)})")
-        config = "\n".join(f"  {config}" for config in configs)
-        return f"blueprint\n{config}"
+        config = "".join(f"\n  {config}" for config in configs)
+        return f"blueprint{config}"
 
 class Position(BaseSchema):
     line: int

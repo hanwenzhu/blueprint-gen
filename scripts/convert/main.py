@@ -32,6 +32,12 @@ def main():
         action="store_true",
         help="Only extract the nodes and print them to stdout in JSON; no modification is made to the Lean source.",
     )
+    parser.add_argument(
+        "--root_file",
+        type=str,
+        default="extra_nodes.lean",
+        help="Path to a Lean file for outputting extra nodes.",
+    )
 
     args = parser.parse_args()
 
@@ -89,7 +95,7 @@ def main():
 
     # Write the blueprint attributes to Lean files
     logger.info("Writing @[blueprint] attributes to Lean files")
-    write_blueprint_attributes(nodes_with_pos, args.modules)
+    write_blueprint_attributes(nodes_with_pos, args.modules, args.root_file)
 
     # Write to LaTeX source
     logger.info("Replacing LaTeX theorems with \\inputleannode")

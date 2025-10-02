@@ -106,13 +106,20 @@ library_facet blueprintConvert (lib : LeanLib) : Unit := do
   let blueprintGen ← BlueprintGen.get
   let convertScript := blueprintGen.srcDir / "scripts" / "convert" / "main.py"
   let rootMods := lib.rootModules
+  if h : rootMods.size = 0 then
+    logError s!"No root modules found for {lib.name}"
+    return .nil
+  else
   let libJob ← lib.leanArts.fetch
+  let srcDir := (← getRootPackage).srcDir
   libJob.bindM fun _ => do
     logInfo "Calling Python script to convert blueprint to blueprint-gen format"
     proc {
       cmd := "python3"
-      args := #[convertScript.toString, "--modules"] ++ rootMods.map (·.name.toString)
+      args := #[convertScript.toString] ++
+        #["--modules"] ++ rootMods.map (·.name.toString) ++
+        #["--root_file", rootMods[0].leanFile.toString]
       env := ← getAugmentedEnv
-      cwd := lib.srcDir
+      cwd := srcDir
     }
     return .nil

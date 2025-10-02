@@ -11,6 +11,54 @@ Nodes are declared in Lean by the `@[blueprint]` tag. They are exported to LaTeX
 
 This tool is built to complement [leanblueprint](https://github.com/PatrickMassot/leanblueprint) and its structure is inspired by [doc-gen4](https://github.com/leanprover/doc-gen4). The idea is inspired by [leanblueprint-extract](https://github.com/AlexKontorovich/PrimeNumberTheoremAnd/tree/main/leanblueprint-extract).
 
+## Instructions
+
+First, install [leanblueprint](https://github.com/PatrickMassot/leanblueprint) and follow the instructions there to set up a blueprint project using `leanblueprint new`, if not already done.
+
+Add blueprint-gen to the lakefile. For example:
+
+```toml
+[[require]]
+name = "blueprint-gen"
+git = "https://github.com/hanwenzhu/blueprint-gen.git"
+rev = "main"
+```
+
+To generate the blueprint for a module, first annotate theorems and definitions in it with `@[blueprint]` (see instructions below), then input the generated blueprint to the blueprint document:
+
+```latex
+% Typically, in blueprint/src/content.tex
+
+\input{../../.lake/build/blueprint/library/Example}
+
+% Input the blueprint contents of module `Example.MyNat`:
+\inputleanmodule{Example.MyNat}
+
+% You may also input only a single node using \inputleannode{MyNat.add}.
+```
+
+Then run:
+
+```sh
+# Generate the blueprint to .lake/build/blueprint
+lake build :blueprint
+# Build the blueprint using leanblueprint
+leanblueprint pdf
+leanblueprint web
+```
+
+If you see LaTeX errors here, you may need to manually fix some docstrings so that the generated LaTeX compiles.
+
+You may also want to put this in the GitHub Actions workflow typically at `.github/workflows/blueprint.yml`:
+
+```yaml
+      # Before "Build blueprint and copy to `home_page/blueprint`":
+      - name: Extract blueprint
+        run: ~/.elan/bin/lake build :blueprint
+```
+
+(See also the instructions for converting from an existing blueprint below.)
+
 ## Example
 
 Consider the following `MyNat` API:
@@ -107,41 +155,6 @@ For "informal-only" theorems or definitions without formal statements, I recomme
 which allows later theorems to reference this theorem.
 
 Alternatively (less recommended), you can use retain informal theorems in the LaTeX blueprint and only write theorems in Lean if they have statement formalized. This will result in "unknown constant" errors in `sorry_using` and `uses` for formal theorems that depend on informal theorems in LaTeX, which you may ignore by `set_option blueprint.ignoreUnknownConstants true`.
-
-## Running blueprint-gen to generate the blueprint
-
-First, install [leanblueprint](https://github.com/PatrickMassot/leanblueprint) and follow the instructions there to set up a blueprint project, if not already done.
-
-To generate the blueprint for a module, first input the generated blueprint to the blueprint document:
-
-```latex
-% Typically, in blueprint/src/content.tex
-
-\input{../../.lake/build/blueprint/library/Example}
-
-% Input the blueprint contents of module `Example.MyNat`:
-\inputleanmodule{Example.MyNat}
-
-% You may also input only a single node using \inputleannode{MyNat.add}.
-```
-
-Then run:
-
-```sh
-# Generate the blueprint to .lake/build/blueprint
-lake build :blueprint
-# Build the blueprint using leanblueprint
-leanblueprint pdf
-leanblueprint web
-```
-
-You may also want to put this in the GitHub Actions workflow typically at `.github/workflows/blueprint.yml`:
-
-```yaml
-      # Before "Build blueprint and copy to `home_page/blueprint`":
-      - name: Extract blueprint
-        run: ~/.elan/bin/lake build :blueprint
-```
 
 ## Converting from existing blueprint format
 
