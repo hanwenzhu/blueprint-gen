@@ -87,7 +87,7 @@ def add_blueprint_gen_import(file: Path):
     lines = source.splitlines(keepends=True)
     first_import_index = 0
     for i, line in enumerate(lines):
-        if line.startswith("import "):
+        if line.startswith("import ") or line.startswith("public import "):
             first_import_index = i
             break
     lines = lines[:first_import_index] + ["import BlueprintGen\n"] + lines[first_import_index:]

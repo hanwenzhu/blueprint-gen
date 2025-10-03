@@ -7,7 +7,7 @@ Blueprint-gen is a tool for generating the blueprint data of a Lean project dire
 The blueprint is a high-level plan of a Lean project, consisting of a series of nodes (theorems and definitions) and the dependency relations between them.
 The purpose of blueprint-gen is to make it easier to write the blueprint by generating blueprint data directly from Lean.
 
-Nodes are declared in Lean by the `@[blueprint]` tag. They are exported to LaTeX, which you may then put in the blueprint.
+Start by annotating definitions and theorems in Lean with the `@[blueprint]` tag. They will then be exported to LaTeX, which you may then put in the blueprint.
 
 This tool is built to complement [leanblueprint](https://github.com/PatrickMassot/leanblueprint) and its structure is inspired by [doc-gen4](https://github.com/leanprover/doc-gen4). The idea is inspired by [leanblueprint-extract](https://github.com/AlexKontorovich/PrimeNumberTheoremAnd/tree/main/leanblueprint-extract).
 
@@ -24,17 +24,28 @@ git = "https://github.com/hanwenzhu/blueprint-gen.git"
 rev = "main"
 ```
 
-To generate the blueprint for a module, first annotate theorems and definitions in it with `@[blueprint]` (see instructions below), then input the generated blueprint to the blueprint document:
+To generate the blueprint for a module, first `import BlueprintGen` and then annotate key theorems and definitions in the file with `@[blueprint]`:
+
+```lean
+import BlueprintGen
+
+@[blueprint]
+theorem my_theorem : Foo Bar := by foo
+```
+
+(See also a full example below.)
+
+Then input the generated blueprint source to the blueprint document (typically, `blueprint/src/content.tex`):
 
 ```latex
-% Typically, in blueprint/src/content.tex
-
+% This makes the macros `\inputleanmodule` and `\inputleannode` available.
 \input{../../.lake/build/blueprint/library/Example}
 
 % Input the blueprint contents of module `Example.MyNat`:
 \inputleanmodule{Example.MyNat}
 
-% You may also input only a single node using \inputleannode{MyNat.add}.
+% You may also input only a single node using:
+% \inputleannode{MyNat.add}.
 ```
 
 Then run:
@@ -61,9 +72,11 @@ You may also want to put this in the GitHub Actions workflow typically at `.gith
 
 ## Example
 
-Consider the following `MyNat` API:
+This example is hosted at [blueprint-gen-example](https://github.com/hanwenzhu/blueprint-gen-example). Consider the following `MyNat` API:
 
 ```lean
+-- Example/MyNat.lean
+
 /-! # Natural numbers -/
 
 @[blueprint "Natural numbers"]
@@ -115,7 +128,7 @@ theorem add_comm (a b : MyNat) : add a b = add b a := by
 end MyNat
 ```
 
-The output of the above example is:
+The (automatic) output of the above example Lean script is:
 
 ![Blueprint web](https://raw.githubusercontent.com/hanwenzhu/blueprint-gen-example/refs/heads/main/images/web.png)
 
