@@ -38,15 +38,15 @@ def find_and_remove_command(command: str, source: str) -> tuple[bool, str]:
     return match is not None, source
 
 
-def find_and_remove_command_arguments(command: str, source: str) -> tuple[list[str], str]:
+def find_and_remove_command_arguments(command: str, source: str, sub_count: int = 0) -> tuple[list[str], str]:
     matches = re.findall(r"\\" + command + r"\s*\{([^\}]*)\}", source)
     values = [item.strip() for m in matches for item in m.split(",")]
-    source = re.sub(r"\\" + command + r"\s*\{[^\}]*\}", "", source)
+    source = re.sub(r"\\" + command + r"\s*\{[^\}]*\}", "", source, count=sub_count)
     return values, source
 
 
 def find_and_remove_command_argument(command: str, source: str) -> tuple[Optional[str], str]:
-    args, source = find_and_remove_command_arguments(command, source)
+    args, source = find_and_remove_command_arguments(command, source, sub_count=1)
     if len(args) > 1:
         logger.warning(f"Multiple \\{command} arguments found: {args}; only using the first one.")
     return args[0] if args else None, source
@@ -159,7 +159,7 @@ def generate_new_lean_name(visited_names: set[str], base: Optional[str]) -> str:
     if base is None:
         base = f"node_{uuid.uuid4().hex}"
     else:
-        base = base.replace("-", "_").replace(" ", "_")
+        base = base.split(":")[-1].replace("-", "_").replace(" ", "_")
         if base and base[0].isdigit():
             base = "_" + base
     if base not in visited_names:

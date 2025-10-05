@@ -103,7 +103,7 @@ def generate_new_lean_name(visited_names: set[str], base: Optional[str]) -> str:
     if base is None:
         base = f"node_{uuid.uuid4().hex}"
     else:
-        base = base.replace("-", "_")
+        base = base.split(":")[-1].replace("-", "_")
     if base not in visited_names:
         return base
     return generate_new_lean_name(visited_names, f"{base}_{uuid.uuid4().hex}")

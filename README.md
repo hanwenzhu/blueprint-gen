@@ -186,7 +186,9 @@ lake build {library name}:blueprintConvert
 
 where `{library name}` is the name of the `lean_lib` (in lakefile) that contains the blueprint nodes.
 
-Note that this conversion is not perfect and not idempotent, and for large projects it may end in some small syntax errors. You would need to fix the errors in the converted files. The script will also save upstream (i.e. `\mathlibok`) nodes and informal-only nodes to the root Lean module, which you may want to move to appropriate places.
+Note that this conversion is not perfect and not idempotent, and for large projects it may end in some small syntax errors. You would need to fix the errors in the converted files.
+
+The script will also save upstream (i.e. `\mathlibok`) nodes and informal-only nodes (nodes without `\lean`) to the root Lean module of your project, which you need to move to appropriate places. You may also want to rename the `\label`s of informal-only nodes beforehand, because the Lean names will be inferred from the labels. (You may also remove the informal-only nodes in Lean and put them back in LaTeX; see the section for handling informal-only nodes for more details.)
 
 Once converted, it is strongly recommended to remove the `uses :=` and `proofUses :=` annoations (and to put them in `sorry_using` if the proof is not yet complete),
 in order to let blueprint-gen automatically infer the dependencies.

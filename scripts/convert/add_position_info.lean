@@ -13,8 +13,14 @@ def runAddPositionInfo (p : Parsed) : IO UInt32 := do
     | IO.throwServerError "--imports flag is required"
   let stdin ← IO.getStdin
   let input ← stdin.readToEnd
-  let json ← IO.ofExcept (Json.parse input)
-  let nodes : Array Node ← IO.ofExcept (fromJson? json)
+  let .arr jsons ← IO.ofExcept (Json.parse input)
+    | IO.throwServerError "Expected a JSON array"
+  let nodes : Array Node ← jsons.filterMapM fun json => do
+    match fromJson? json with
+    | .ok (node : Node) => return some node
+    | .error e =>
+      IO.eprintln s!"Ignoring node with error: {e}"
+      return none
   runEnvOfImports imports do
     let nodesWithPos ← nodes.mapM fun node => node.toNodeWithPos
     IO.println (nodesWithPos.map NodeWithPos.toJson |>.toJson)
