@@ -97,7 +97,7 @@ def add_blueprint_gen_import(file: Path):
 
 def topological_sort(data: list[tuple[Node, str]]) -> list[tuple[Node, str]]:
     name_to_node: dict[str, tuple[Node, str]] = {node.name: (node, value) for node, value in data}
-    
+
     visited: set[str] = set()
     result: list[tuple[Node, str]] = []
 
@@ -160,7 +160,7 @@ def write_blueprint_attributes(nodes: list[NodeWithPos], modules: list[str], roo
             else:
                 lean += f"theorem {node.name} : (sorry_using [{', '.join(node.proof.uses)}] : Prop) := by\n  {make_docstring(node.proof.text, indent=2)}\n  sorry_using [{', '.join(node.statement.uses)}]"
             extra_nodes.append((node, lean))
-    
+
     extra_nodes = topological_sort(extra_nodes)
 
     if extra_nodes:

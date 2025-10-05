@@ -187,7 +187,7 @@ def parse_nodes(source: str) -> tuple[list[Node], dict[str, list[str]]]:
     nodes: list[Node] = []
     name_to_node: dict[str, Node] = {}
     label_to_node: dict[str, Node] = {}
-    
+
     # Raw sources of each name, for modifying LaTeX later
     name_to_raw_sources: dict[str, list[str]] = {}
 

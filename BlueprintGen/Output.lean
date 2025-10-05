@@ -118,7 +118,7 @@ where
       return "\\begin{enumerate}" ++ "\n\n".intercalate (← items.mapM itemToLatex).toList ++ "\\end{enumerate}"
     | .hr => return "\\midrule"
     | .header level texts =>
-      let headerCommand := match level with | 1 => "section" | 2 => "subsection" | 3 => "subsubsection" | 4 => "paragraph" | _ => "subparagraph"
+      let headerCommand := match level with | 0 | 1 => "chapter" | 2 => "section" | 3 => "subsection" | 4 => "subsubsection" | 5 => "paragraph" | _ => "subparagraph"
       return "\\" ++ headerCommand ++ "{" ++ String.join (← texts.mapM textToLatex).toList ++ "}"
     | .code _info _lang _fenceChar content => return "\\begin{verbatim}" ++ "\n\n".intercalate content.toList ++ "\\end{verbatim}"
     | .html content => return String.join content.toList
