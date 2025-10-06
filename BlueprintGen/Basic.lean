@@ -76,13 +76,15 @@ Resolves an identifier using `realizeGlobalConstNoOverloadWithInfo`.
 Ignores unknown constants if `blueprint.ignoreUnknownConstants` is true (default: false).
 -/
 def tryResolveConst (id : Ident) : CoreM Name := do
-  if blueprint.ignoreUnknownConstants.get (← getOptions) then
-    try
-      realizeGlobalConstNoOverloadWithInfo id
-    catch _ =>
-      return id.getId
-  else
+  try
     realizeGlobalConstNoOverloadWithInfo id
+  catch ex =>
+    if blueprint.ignoreUnknownConstants.get (← getOptions) then
+      -- logNamedWarningAt id lean.unknownIdentifier ex.toMessageData
+      return id.getId
+    else
+      throwNamedErrorAt id lean.unknownIdentifier
+        "{ex.toMessageData}\n\nThis error can be disabled by `set_option blueprint.ignoreUnknownConstants true`."
 
 end ResolveConst
 
