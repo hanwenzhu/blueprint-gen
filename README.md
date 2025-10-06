@@ -180,20 +180,18 @@ First go to a clean branch **without any uncomitted changes**, to prevent overwr
 You can then convert to blueprint-gen format by adding `blueprint-gen` as a dependency to lakefile, run `lake update blueprint-gen`, and then run:
 
 ```sh
-# At the project root
-lake build {library name}:blueprintConvert
+lake script run blueprintConvert
 ```
-
-where `{library name}` is the name of the `lean_lib` (in lakefile) that contains the blueprint nodes.
 
 Note that this conversion is not perfect and not idempotent, and for large projects it may end in some small syntax errors. You would need to fix the errors in the converted files.
 
-The script will also save upstream (i.e. `\mathlibok`) nodes and informal-only nodes (nodes without `\lean`) to the root Lean module of your project, which you need to move to appropriate places. You may also want to rename the `\label`s of informal-only nodes beforehand, because the Lean names will be inferred from the labels. (You may also remove the informal-only nodes in Lean and put them back in LaTeX; see the section for handling informal-only nodes for more details.)
+The script will also save `\mathlibok` nodes and informal-only nodes (nodes without `\lean`) to the root Lean module of your project, and you need to move them to appropriate places. Alternatively, you can add `--skip_informal` to the command above to retain the informal-only nodes in LaTeX and not convert them to Lean.
 
-Once converted, it is strongly recommended to remove the `uses :=` and `proofUses :=` annoations (and to put them in `sorry_using` if the proof is not yet complete),
-in order to let blueprint-gen automatically infer the dependencies.
+The conversion will remove the `\uses` information in LaTeX and let blueprint-gen automatically infer dependencies in Lean, unless the code contains `sorry` (in which case `uses :=` and `proofUses :=` will be added). If `--add_uses` is specified then all `\uses` information is retained in Lean.
 
 Docstrings are converted from LaTeX to Markdown using Pandoc. If there is informal description of a theorem in LaTeX and a docstring in Lean, they are concatenated to form the new docstring. You should tidy the existing Markdown docstrings (e.g. wrap code in backticks and math in dollar signs) for better rendering.
+
+You may use `--blueprint_root <root>` to specify the path to your blueprint, if it is not the default.
 
 (For reference, it takes a few minutes to convert [FLT](https://github.com/ImperialCollegeLondon/FLT) to blueprint-gen format and fix all errors, and it might take longer to fix all warnings and make the output look nicer.)
 

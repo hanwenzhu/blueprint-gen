@@ -45,17 +45,17 @@ class Node(BaseSchema):
     discussion: Optional[int]
     title: Optional[str]
 
-    def to_lean_attribute(self, add_proof_text: bool = True, add_uses: bool = True) -> str:
+    def to_lean_attribute(self, add_uses: bool = True, add_proof_text: bool = True, add_proof_uses: bool = True) -> str:
         configs = []
         # See BlueprintGen/Attribute.lean for the options
         if self.title:
             configs.append(_quote(self.title))
-        if add_uses:
+        if add_uses and self.statement.uses:
             configs.append(f"(uses := [{', '.join(self.statement.uses)}])")
         if self.proof is not None:
             if add_proof_text:
                 configs.append(f"(proof := {make_docstring(self.proof.text, indent=2)})")
-            if add_uses:
+            if add_proof_uses and self.proof.uses:
                 configs.append(f"(proofUses := [{', '.join(self.proof.uses)}])")
         if self.not_ready:
             configs.append("(notReady := true)")
@@ -101,18 +101,37 @@ def pandoc_convert(from_format: str, to_format: str, input: str) -> str:
     return result.stdout
 
 def pandoc_convert_latex_to_markdown(latex: str) -> str:
+    # Preprocess all citation commands to \cite
+    # From https://github.com/jgm/pandoc/blob/main/src/Text/Pandoc/Readers/LaTeX/Citation.hs
+    cite_commands = ["cite", "Cite", "citep", "citep*", "citeal", "citealp", "citealp*", "autocite", "smartcite", "footcite", "parencite", "supercite", "footcitetext", "citeyearpar", "citeyear", "autocite*", "cite*", "parencite*", "textcite", "citet", "citet*", "citealt", "citealt*", "textcites", "cites", "autocites", "footcites", "parencites", "supercites", "footcitetexts", "Autocite", "Smartcite", "Footcite", "Parencite", "Supercite", "Footcitetext", "Citeyearpar", "Citeyear", "Autocite*", "Cite*", "Parencite*", "Textcite", "Textcites", "Cites", "Autocites", "Footcites", "Parencites", "Supercites", "Footcitetexts", "citetext", "citeauthor", "nocite"]
+    latex = re.sub(
+        r"\\(?:" + "|".join(c.replace("*", r"\*") for c in cite_commands) + r")\s*(\[.*?\])?\s*\{(.*?)\}",
+        r"\\cite\1{\2}",
+        latex
+    )
+
+    # Call Pandoc to convert LaTeX to Markdown
     converted = pandoc_convert(
         "latex",
         # Pandoc's Markdown flavor, disable raw HTML, disable attributes
         "markdown-raw_html-raw_attribute-bracketed_spans-native_divs-native_spans-link_attributes",
         latex
     )
+
     # Postprocess outputs of \ref commands
     # Here, the \ref commands that refer to depgraph nodes were already replaced with \texttt in parse_latex.py
     # Pandoc converts the rest (e.g. \ref{chapter-label}) to [\[chapter-label\]](#chapter-label), which we convert back to \ref{chapter-label}
     converted = re.sub(r"\[\\\[(.*?)\\\]\]\(\#\1\)", r"\\ref{\1}", converted)
-    # Postprocess citations
-    converted = re.sub(r"\[\@(.*?)\]", r"[\1]", converted)
+    # Postprocess citations: [@a; @b text] -> [a] [b], text
+    def replace_cite(match):
+        parts = match.group(1).split(";")
+        tags = " ".join(f"[{p.strip().removeprefix('@')}]" for p in parts)
+        rest = match.group(2).strip()
+        if rest:
+            return f"{tags}, {rest}"
+        else:
+            return tags
+    converted = re.sub(r"\[((?:@[^\s;]+)(?:;\s*@[^\s;]+)*)(.*?)\]", replace_cite, converted)
     return converted.strip()
 
 def convert_node_latex_to_markdown(node: Node):

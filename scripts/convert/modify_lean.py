@@ -73,11 +73,16 @@ def insert_docstring_and_attribute(decl: str, new_docstring: str, new_attr: str)
     return f"{command_modifiers}{make_docstring(docstring)}\n@[{attrs}]\n{decl}"
 
 
-def modify_source(node: Node, file: Path, location: DeclarationLocation):
+def modify_source(node: Node, file: Path, location: DeclarationLocation, add_uses: bool):
     """Modify a Lean source file to add @[blueprint] attribute and docstring to the node."""
     source = file.read_text()
     pre, decl, post = split_declaration(source, location.range.pos, location.range.end_pos)
-    decl = insert_docstring_and_attribute(decl, new_docstring=node.statement.text, new_attr=node.to_lean_attribute())
+    # If there is `sorry` in a definition, then the inferred dependencies are incomplete, so `uses` is needed
+    add_uses = add_uses or (node.proof is None and "sorry" in decl)
+    # If there is `sorry` in a proof, then the inferred proof dependencies are incomplete, so `proofUses` is needed
+    add_proof_uses = add_uses or (node.proof is not None and "sorry" in decl)
+    attr = node.to_lean_attribute(add_uses=add_uses, add_proof_uses=add_proof_uses)
+    decl = insert_docstring_and_attribute(decl, new_docstring=node.statement.text, new_attr=attr)
     file.write_text(pre + decl + post)
 
 
@@ -119,7 +124,7 @@ def topological_sort(data: list[tuple[Node, str]]) -> list[tuple[Node, str]]:
     return result
 
 
-def write_blueprint_attributes(nodes: list[NodeWithPos], modules: list[str], root_file: str):
+def write_blueprint_attributes(nodes: list[NodeWithPos], modules: list[str], root_file: str, skip_informal: bool, add_uses: bool):
     # Sort nodes by position, so that we can modify later declarations first
     nodes.sort(
         key=lambda n:
@@ -140,7 +145,7 @@ def write_blueprint_attributes(nodes: list[NodeWithPos], modules: list[str], roo
             upstream_nodes.append(node)
             continue
 
-        modify_source(node, Path(node.file), node.location)
+        modify_source(node, Path(node.file), node.location, add_uses=add_uses)
         modified_files.add(node.file)
 
     for file in modified_files:
@@ -149,12 +154,14 @@ def write_blueprint_attributes(nodes: list[NodeWithPos], modules: list[str], roo
     # The extra Lean source to be inserted somewhere in the project,
     # containing (1) upstream (\mathlibok) nodes and (2) informal-only nodes not yet in Lean
     extra_nodes: list[tuple[Node, str]] = []
+    # Upstream nodes
     for node in upstream_nodes:
         extra_nodes.append((node, f"attribute [{node.to_lean_attribute()}] {node.name}"))
+    # Informal-only nodes
     for node in nodes:
-        if not node.has_lean:
+        if not node.has_lean and not skip_informal:
             lean = f"{make_docstring(node.statement.text)}\n"
-            lean += f"@[{node.to_lean_attribute(add_proof_text=False, add_uses=False)}]\n"
+            lean += f"@[{node.to_lean_attribute(add_uses=False, add_proof_text=False, add_proof_uses=False)}]\n"
             if node.proof is None:
                 lean += f"def {node.name} : (sorry : Type) :=\n  sorry_using [{', '.join(node.statement.uses)}]"
             else:
@@ -169,7 +176,7 @@ def write_blueprint_attributes(nodes: list[NodeWithPos], modules: list[str], roo
             f"Outputting some nodes whose locations could not be determined to\n  {extra_nodes_file}\n" +
             "You may want to move them to appropriate locations."
         )
-        imports = "import Mathlib\nimport BlueprintGen"
+        imports = "import BlueprintGen"
         if extra_nodes_file.exists():
             existing = extra_nodes_file.read_text()
         else:

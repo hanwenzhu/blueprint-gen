@@ -136,11 +136,6 @@ def convert_latex_label_to_lean_name(node_part: NodePart, label_to_node: dict[st
     node_part.text = convert_ref_to_texttt(node_part.text, label_to_node)
 
 
-def convert_citet_to_cite(source: str) -> str:
-    source = re.sub(r"\\citet\s*\{([^\}]*)\}", r"\\cite{\1}", source)
-    return source
-
-
 def remove_nonbreaking_spaces(source: str) -> str:
     source = re.sub(r"(?<!\\)~", r" ", source)
     source = source.strip()
@@ -150,7 +145,6 @@ def remove_nonbreaking_spaces(source: str) -> str:
 def process_source(source: str) -> tuple[SourceInfo, str]:
     """Returns the source TeX of the node, removing custom commands."""
     source = remove_nonbreaking_spaces(source)
-    source = convert_citet_to_cite(source)
     return parse_and_remove_blueprint_commands(source)
 
 

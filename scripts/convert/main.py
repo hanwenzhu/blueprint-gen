@@ -1,5 +1,6 @@
 import argparse
 import json
+import os
 from pathlib import Path
 import subprocess
 import sys
@@ -19,24 +20,35 @@ def main():
         required=True,
         help="The names of Lean modules for conversion. " +
              "The blueprint nodes are assumed to be accessible from these modules, " +
-             "and their (sub)modules will be modified to add @[blueprint] attributes.",
+             "and their (sub)modules will be modified to add @[blueprint] attributes."
     )
     parser.add_argument(
         "--blueprint_root",
         type=str,
         default=None,
-        help="Path to the blueprint root directory, which should contain web.tex and plastex.cfg (default: blueprint/src or blueprint).",
-    )
-    parser.add_argument(
-        "--extract-only",
-        action="store_true",
-        help="Only extract the nodes and print them to stdout in JSON; no modification is made to the Lean source.",
+        help="Path to the blueprint root directory, which should contain web.tex and plastex.cfg (default: blueprint/src or blueprint)."
     )
     parser.add_argument(
         "--root_file",
         type=str,
         default="extra_nodes.lean",
-        help="Path to a Lean file for outputting extra nodes.",
+        help="Path to a Lean file for outputting extra nodes."
+    )
+    # Optional parameters
+    parser.add_argument(
+        "--extract_only",
+        action="store_true",
+        help="Only extract the nodes and print them to stdout in JSON; no modification is made to the Lean source."
+    )
+    parser.add_argument(
+        "--skip_informal",
+        action="store_true",
+        help="Skip informal-only nodes."
+    )
+    parser.add_argument(
+        "--add_uses",
+        action="store_true",
+        help="Add `uses` and `proofUses` to all nodes (otherwise only adds to nodes with `sorry`)."
     )
 
     args = parser.parse_args()
@@ -95,7 +107,7 @@ def main():
 
     # Write the blueprint attributes to Lean files
     logger.info("Writing @[blueprint] attributes to Lean files")
-    write_blueprint_attributes(nodes_with_pos, args.modules, args.root_file)
+    write_blueprint_attributes(nodes_with_pos, args.modules, args.root_file, args.skip_informal, args.add_uses)
 
     # Write to LaTeX source
     logger.info("Replacing LaTeX theorems with \\inputleannode")
@@ -104,9 +116,9 @@ def main():
         if name not in name_to_node_with_pos:
             logger.warning(f"Node {name} not found in nodes_with_pos")
             continue
-        # # Skip writing \inputleannode for nodes that are not in Lean
-        # if not name_to_node_with_pos[name].has_lean:
-        #     continue
+        # If args.skip_informal, skip writing \inputleannode for nodes that are not in Lean
+        if args.skip_informal and not name_to_node_with_pos[name].has_lean:
+            continue
         first_source, *rest_sources = raw_latex_sources
         for file in blueprint_root.glob("**/*.tex"):
             file_content = file.read_text()

@@ -100,26 +100,31 @@ package_facet blueprintJson (pkg : Package) : Unit := do
   let _ ← libJobs.await
   return .nil
 
-/-- A facet to convert an existing blueprint to blueprint-gen format,
+open IO.Process in
+/-- Run a command, print all outputs, and throw an error if it fails. -/
+private def runCmd (cmd : String) (args : Array String) : ScriptM Unit := do
+  let child ← spawn { cmd, args, stdout := .inherit, stderr := .inherit, stdin := .null }
+  let exitCode ← child.wait
+  if exitCode != 0 then
+    throw <| IO.userError s!"Error running command {cmd} {args.toList}"
+
+/-- A script to convert an existing blueprint to blueprint-gen format,
 modifying the Lean and LaTeX source files in place. -/
-library_facet blueprintConvert (lib : LeanLib) : Unit := do
+script blueprintConvert (args : List String) do
   let blueprintGen ← BlueprintGen.get
   let convertScript := blueprintGen.srcDir / "scripts" / "convert" / "main.py"
-  let rootMods := lib.rootModules
+  let libs := (← getRootPackage).leanLibs
+  let rootMods := libs.flatMap (·.rootModules)
   if h : rootMods.size = 0 then
-    logError s!"No root modules found for {lib.name}"
-    return .nil
-  else
-  let libJob ← lib.leanArts.fetch
-  let srcDir := (← getRootPackage).srcDir
-  libJob.bindM fun _ => do
-    logInfo "Calling Python script to convert blueprint to blueprint-gen format"
-    proc {
-      cmd := "python3"
-      args := #[convertScript.toString] ++
-        #["--modules"] ++ rootMods.map (·.name.toString) ++
-        #["--root_file", rootMods[0].leanFile.toString]
-      env := ← getAugmentedEnv
-      cwd := srcDir
-    }
-    return .nil
+    IO.eprintln "No root modules found for any library"
+    return 1
+  else  -- this else is needed for rootMods[0] to work
+  for lib in libs do
+    runCmd (← getLake).toString #["build", lib.name.toString]
+  IO.eprintln "Calling Python script to convert blueprint to blueprint-gen format"
+  runCmd "python3" <| #[
+    convertScript.toString] ++
+    #["--modules"] ++ rootMods.map (·.name.toString) ++
+    #["--root_file", rootMods[0].leanFile.toString] ++
+    args
+  return 0
