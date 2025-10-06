@@ -134,7 +134,8 @@ where
     | .u texts => return "\\ul{" ++ String.join (← texts.mapM textToLatex).toList ++ "}"
     | .a href _title _isAuto texts => return "\\href{" ++ String.join (href.map attrTextToLatex).toList ++ "}{" ++ String.join (← texts.mapM textToLatex).toList ++ "}"
     | .img src _title _alt => return "\\includegraphics{" ++ String.join (src.map attrTextToLatex).toList ++ "}"
-    -- \leancode converts inline code to \ref where possible. If not a valid reference, this defaults to \texttt{content} (see `latexPreamble`).
+    -- \leancode converts inline code to \ref where possible. If not a valid reference, this defaults to \texttt{\detokenize{content}}
+    -- (see `latexPreamble`; **TODO**: use \verb or \Verb instead).
     | .code content => return "\\leancode{" ++ String.join (content.toList.map escapeForLatexBasic) ++ "}"
     | .del texts => return "\\st{" ++ String.join (← texts.mapM textToLatex).toList ++ "}"
     | .latexMath content => return "$" ++ String.join (content.toList.map escapeForLatexBasic) ++ "$"

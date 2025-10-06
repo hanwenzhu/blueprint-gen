@@ -10,6 +10,8 @@ namespace BlueprintGen
 
 /-- `Config` is the type of arguments that can be provided to `blueprint`. -/
 structure Config where
+  /-- The statement of the node in text. Uses docstring if not present. -/
+  statement : Option String := none
   /-- By default, only theorems have separate proof parts. This option overrides this behavior. -/
   hasProof : Option Bool := none
   /-- The proof of the node in text. Uses proof docstrings if not present. -/
@@ -34,6 +36,7 @@ structure Config where
   trace : Bool := false
 deriving Repr
 
+syntax blueprintStatementOption := &"statement" " := " docComment
 syntax blueprintHasProofOption := &"hasProof" " := " ("true" <|> "false")
 syntax blueprintProofOption := &"proof" " := " docComment
 syntax blueprintUsesOption := &"uses" " := " "[" (ident <|> str),* "]"
@@ -43,6 +46,7 @@ syntax blueprintDiscussionOption := &"discussion" " := " num
 syntax blueprintLatexEnvOption := &"latexEnv" " := " str
 
 syntax blueprintOption := "("
+  blueprintStatementOption <|>
   blueprintHasProofOption <|> blueprintProofOption <|>
   blueprintUsesOption <|> blueprintProofUsesOption <|>
   blueprintNotReadyOption <|> blueprintDiscussionOption <|>
@@ -54,8 +58,9 @@ The `blueprint` attribute tags a constant to add to the blueprint.
 
 You may optionally add:
 - `"Title"`: The title of the node in LaTeX.
+- `statement := /-- ... -/`: The statement of the node in text (default: the docstring).
 - `hasProof := true`: If the node has a proof (default: true if the node is a theorem).
-- `proof := /-- ... -/`: The proof of the node in text.
+- `proof := /-- ... -/`: The proof of the node in text (default: the docstrings in proof tactics).
 - `uses := [a, b]`: The dependencies of the node (default: inferred from the used constants).
 - `proofUses := [a, b]`: The dependencies of the proof of the node (default: inferred from the used constants).
 - `notReady := true`: Whether the node is not ready.
@@ -78,6 +83,10 @@ def elabBlueprintConfig : Syntax → CoreM Config
     if let some title := title? then config := { config with title := title.getString }
     for stx in opts do
       match stx with
+      | `(blueprintOption| (statement := $doc)) =>
+        validateDocComment doc
+        let statement := (← getDocStringText doc).trim
+        config := { config with statement }
       | `(blueprintOption| (hasProof := true)) =>
         config := { config with hasProof := some .true }
       | `(blueprintOption| (hasProof := false)) =>
@@ -124,7 +133,7 @@ def mkStatementPart (name : Name) (cfg : Config) (hasProof : Bool) (used : NameS
   -- Used constants = constants specified by `uses :=` + blueprint constants used in the statement
   let uses := cfg.uses.foldl (·.insert ·) used
   -- Use docstring for statement text
-  let statement := ((← findSimpleDocString? env name).getD "").trim
+  let statement := cfg.statement.getD ((← findSimpleDocString? env name).getD "").trim
   return {
     leanOk := !used.contains ``sorryAx
     text := statement

@@ -50,11 +50,13 @@ class Node(BaseSchema):
     discussion: Optional[int]
     title: Optional[str]
 
-    def to_lean_attribute(self, add_uses: bool = True, add_proof_text: bool = True, add_proof_uses: bool = True) -> str:
+    def to_lean_attribute(self, add_statement_text: bool = True, add_uses: bool = True, add_proof_text: bool = True, add_proof_uses: bool = True) -> str:
         configs = []
         # See BlueprintGen/Attribute.lean for the options
         if self.title:
             configs.append(_quote(self.title))
+        if add_statement_text and self.statement.text.strip():
+            configs.append(f"(statement := {make_docstring(self.statement.text, indent=2)})")
         if add_uses and self.statement.all_uses():
             configs.append(f"(uses := [{', '.join(self.statement.all_uses())}])")
         if self.proof is not None:
@@ -124,7 +126,7 @@ def pandoc_convert_latex_to_markdown(latex: str) -> str:
     )
 
     # Postprocess outputs of \ref commands
-    # Here, the \ref commands that refer to depgraph nodes were already replaced with \texttt in parse_latex.py
+    # Here, the \ref commands that refer to depgraph nodes were already replaced with \verb in parse_latex.py
     # Pandoc converts the rest (e.g. \ref{chapter-label}) to [\[chapter-label\]](#chapter-label), which we convert back to \ref{chapter-label}
     converted = re.sub(r"\[\\\[(.*?)\\\]\]\(\#\1\)", r"\\ref{\1}", converted)
     # Postprocess citations: [@a; @b text] -> [a] [b], text

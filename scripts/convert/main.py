@@ -9,6 +9,7 @@ from loguru import logger
 
 from common import Node, NodeWithPos, convert_node_latex_to_markdown
 from parse_latex import read_latex_file, parse_nodes, get_bibliography_files
+from modify_latex import write_latex_source
 from modify_lean import write_blueprint_attributes
 
 
@@ -76,7 +77,7 @@ def main():
 
     # Parse the document into nodes in dependency graph
     logger.info("Parsing nodes in blueprint LaTeX")
-    nodes, name_to_raw_latex_sources = parse_nodes(source, args.convert_informal)
+    nodes, name_to_raw_latex_sources, label_to_node = parse_nodes(source, args.convert_informal)
 
     # Convert nodes to JSON
     logger.info("Converting nodes to JSON")
@@ -117,27 +118,7 @@ def main():
 
     # Write to LaTeX source
     logger.info("Replacing LaTeX theorems with \\inputleannode")
-    name_to_node_with_pos = {node.name: node for node in nodes_with_pos}
-    for name, raw_latex_sources in name_to_raw_latex_sources.items():
-        if name not in name_to_node_with_pos:
-            logger.warning(f"Node {name} not found in nodes_with_pos")
-            continue
-        # If not args.convert_informal, skip writing \inputleannode for nodes that are not in Lean
-        if not args.convert_informal and not name_to_node_with_pos[name].has_lean:
-            continue
-        first_source, *rest_sources = raw_latex_sources
-        for file in blueprint_root.glob("**/*.tex"):
-            file_content = file.read_text()
-            file_content = file_content.replace(first_source, f"\\inputleannode{{{name}}}")
-            for s in rest_sources:
-                file_content = file_content.replace(s, "")
-            file.write_text(file_content)
-    macros_file = blueprint_root / "macros" / "common.tex"
-    if macros_file.exists():
-        macros = macros_file.read_text()
-        for library in args.libraries:
-            macros += f"\n\\input{{../../.lake/build/blueprint/library/{library}}}\n"
-        macros_file.write_text(macros)
+    write_latex_source(nodes_with_pos, name_to_raw_latex_sources, label_to_node, blueprint_root, args.convert_informal, args.libraries)
 
 
 if __name__ == "__main__":

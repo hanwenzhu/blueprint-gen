@@ -84,7 +84,7 @@ def modify_source(node: Node, file: Path, location: DeclarationLocation, add_use
     add_uses = add_uses or (node.proof is None and "sorry" in decl)
     # If there is `sorry` in a proof, then the inferred proof dependencies are incomplete, so `proofUses` is needed
     add_proof_uses = add_uses or (node.proof is not None and "sorry" in decl)
-    attr = node.to_lean_attribute(add_uses=add_uses, add_proof_uses=add_proof_uses)
+    attr = node.to_lean_attribute(add_statement_text=False, add_uses=add_uses, add_proof_uses=add_proof_uses)
     decl = insert_docstring_and_attribute(decl, new_docstring=node.statement.text, new_attr=attr)
     file.write_text(pre + decl + post)
 
@@ -166,7 +166,7 @@ def write_blueprint_attributes(nodes: list[NodeWithPos], modules: list[str], roo
             lean = ""
             if node.statement.text.strip():
                 lean += f"{make_docstring(node.statement.text)}\n"
-            lean += f"@[{node.to_lean_attribute(add_uses=False, add_proof_text=False, add_proof_uses=False)}]\n"
+            lean += f"@[{node.to_lean_attribute(add_statement_text=False, add_uses=False, add_proof_text=False, add_proof_uses=False)}]\n"
             if node.proof is None:
                 lean += f"def {node.name} : (sorry : Type) :=\n"
                 lean += f"  sorry_using [{', '.join(node.statement.all_uses())}]"
@@ -181,10 +181,16 @@ def write_blueprint_attributes(nodes: list[NodeWithPos], modules: list[str], roo
 
     if extra_nodes:
         extra_nodes_file = Path(root_file)
-        logger.warning(
-            f"Outputting some nodes whose locations could not be determined to\n  {extra_nodes_file}\n" +
-            "You may want to move them to appropriate locations."
-        )
+        if convert_informal:
+            logger.warning(
+                f"Outputting some nodes whose locations could not be determined to\n  {extra_nodes_file}\n" +
+                "You may want to move them to appropriate locations."
+            )
+        else:
+            logger.warning(
+                f"Outputting some attributes of upstream (e.g. mathlib) nodes to\n  {extra_nodes_file}\n" +
+                "You may want to move them to appropriate locations."
+            )
         imports = "import BlueprintGen"
         if extra_nodes_file.exists():
             existing = extra_nodes_file.read_text()

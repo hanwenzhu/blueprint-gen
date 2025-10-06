@@ -68,7 +68,12 @@ class SourceInfo:
 def parse_and_remove_blueprint_commands(source: str) -> tuple[SourceInfo, str]:
     """Parse and remove custom commands (\\label, plastexdepgraph, leanblueprint commands)."""
     # \label
-    label, source = find_and_remove_command_argument("label", source)
+    # We only look for \label in the outermost environment because inner environments may have their own labels.
+    def remove_environments(source: str) -> str:
+        # Note: this is only approximate, e.g. it does not handle nested same environments correctly
+        return re.sub(r"\\begin\s*\{(.*?)\}.*?\\end\s*\{\1\}", r"", source, flags=re.DOTALL)
+    label, _ = find_and_remove_command_argument("label", remove_environments(source))
+    source = source.replace(f"\\label{{{label}}}", "")  # remove \label from source manually
     # plastexdepgraph commands
     uses, source = find_and_remove_command_arguments("uses", source)
     alsoIn, source = find_and_remove_command_arguments("alsoIn", source)
@@ -102,26 +107,31 @@ def try_int(s: Optional[str]) -> Optional[int]:
         return None
 
 
-def convert_ref_to_texttt(source: str, label_to_node: dict[str, Node]):
-    r"""Convert \ref{abc} to \texttt{abc}.
+def convert_ref_to_verb(source: str, label_to_node: dict[str, Node]):
+    r"""Convert \ref{latex-label-of-node} to \verb{lean_name_of_node} if possible,
+    as a preprocessing step for converting to Markdown.
 
     This is so that in the output, [\[long_theorem_name\]](#long_theorem_name) becomes
     `long_theorem_name` instead, and the latter can be automatically converted to
     links/refs by both doc-gen4 and blueprint-gen.
     """
     def replace_ref(match):
-        label = match.group(1)
-        if label not in label_to_node:
-            if "_" in label:
-                # If the label contains an underscore (e.g. \label{sec_label}), we assume it is still a Lean name and wrap it in \texttt,
+        labels = [label.strip() for label in match.group(1).split(",")]
+        output = []
+        for label in labels:
+            if label in label_to_node:
+                # Note: using \verb instead of \texttt because Pandoc would e.g. process the
+                # braces and quotes in \texttt.
+                output.append(f"\\verb|{label_to_node[label].name}|")
+            elif "_" in label:
+                # If the label contains an underscore (e.g. \label{sec_label}), we assume it is still a Lean name and wrap it in \verb,
                 # even though it is not in the blueprint graph. This is then converted to `sec_label` instead of \ref{sec_label}, which
                 # avoids errors with escaping the underscore in later conversion from Markdown to LaTeX.
-                return f"\\texttt{{{label}}}"
+                output.append(f"\\verb|{label}|")
             else:
                 # Retain the use of \ref
-                return match.group(0)
-        else:
-            return f"\\texttt{{{label_to_node[label].name}}}"
+                output.append(f"\\ref{{{label}}}")
+        return ", ".join(output)
     # From https://github.com/jgm/pandoc/blob/main/src/Text/Pandoc/Readers/LaTeX/Inline.hs
     ref_commands = ["ref", "cref", "Cref", "vref", "eqref", "autoref"]
     source = re.sub(r"\\(?:" + "|".join(ref_commands) + r")\s*\{([^\}]*)\}", replace_ref, source)
@@ -138,7 +148,7 @@ def convert_latex_label_to_lean_name(node_part: NodePart, label_to_node: dict[st
             used_node = label_to_node[use]
             node_part.uses_raw.remove(use)
             node_part.uses.add(used_node.name)
-    node_part.text = convert_ref_to_texttt(node_part.text, label_to_node)
+    node_part.text = convert_ref_to_verb(node_part.text, label_to_node)
 
 
 def remove_nonbreaking_spaces(source: str) -> str:
@@ -167,7 +177,7 @@ def generate_new_lean_name(visited_names: set[str], base: Optional[str]) -> str:
     return generate_new_lean_name(visited_names, f"{base}_{uuid.uuid4().hex}")
 
 
-def parse_nodes(source: str, convert_informal: bool) -> tuple[list[Node], dict[str, list[str]]]:
+def parse_nodes(source: str, convert_informal: bool) -> tuple[list[Node], dict[str, list[str]], dict[str, Node]]:
     """Parse the nodes in the LaTeX source."""
     match = re.search(r"\\usepackage\s*\[[^\]]*\bthms\s*=\s*([^,\]\}]*)", source)
     if match:
@@ -201,9 +211,8 @@ def parse_nodes(source: str, convert_informal: bool) -> tuple[list[Node], dict[s
         source_info, node_source = process_source(content)
         if source_info.lean is not None:
             name = source_info.lean
-            if source_info.label is not None and source_info.lean != source_info.label:
-                # TODO: address this, by applying convert_latex_label_to_lean_name on all LaTeX content instead of just nodes
-                logger.warning(f"Lean name {source_info.lean} differs from label {source_info.label}")
+            if source_info.label is None:
+                logger.warning(f"Did not find a LaTeX label for {name}")
         elif not convert_informal:
             match_idx_to_node[i] = None
             continue
@@ -212,7 +221,7 @@ def parse_nodes(source: str, convert_informal: bool) -> tuple[list[Node], dict[s
         name_to_raw_sources.setdefault(name, []).append(match.group(0))
 
         if name in name_to_node:
-            logger.warning(f"Lean name {name} occurs in blueprint twice; only keeping the first.")
+            logger.warning(f"Lean name {name} occurs in blueprint multiple times; only keeping the first.")
             node = name_to_node[name]
         else:
             statement = NodePart(
@@ -261,7 +270,7 @@ def parse_nodes(source: str, convert_informal: bool) -> tuple[list[Node], dict[s
         if node.proof is not None:
             convert_latex_label_to_lean_name(node.proof, label_to_node)
 
-    return nodes, name_to_raw_sources
+    return nodes, name_to_raw_sources, label_to_node
 
 
 def get_bibliography_files(source: str) -> list[Path]:
