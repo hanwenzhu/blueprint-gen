@@ -126,7 +126,7 @@ def convert_ref_to_texttt(source: str, label_to_node: dict[str, Node]):
 
 def convert_latex_label_to_lean_name(node_part: NodePart, label_to_node: dict[str, Node]):
     """Converts the `uses` and `\\ref` commands to reference Lean names rather than LaTeX labels."""
-    for use in node_part.uses_raw.copy():
+    for use in list(node_part.uses_raw):
         if use in label_to_node:
             # Convert from LaTeX labels in uses_raw to Lean names in uses, if the used node is formalized
             used_node = label_to_node[use]
@@ -150,6 +150,7 @@ def process_source(source: str) -> tuple[SourceInfo, str]:
     return parse_and_remove_blueprint_commands(source)
 
 
+# NB: this is essentially not used if --convert_informal is not set
 def generate_new_lean_name(visited_names: set[str], base: Optional[str]) -> str:
     """Generate a unique Lean identifier."""
     if base is None:

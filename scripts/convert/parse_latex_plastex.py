@@ -139,7 +139,7 @@ def parse_dep_graph(document: TeXDocument) -> list[Node]:
                     env_to_node[proof_env] = name_to_node[name]
                 continue
 
-            statement = NodePart(lean_ok=node_env.userdata.get("leanok", False), text=process_source(node_env), uses=set(), latex_env=node_env.tagName)
+            statement = NodePart(lean_ok=node_env.userdata.get("leanok", False), text=process_source(node_env), uses=set(), uses_raw=set(), latex_env=node_env.tagName)
 
             not_ready = node_env.userdata.get("notready", False)
             discussion = try_int(node_env.userdata.get("issue", None))
@@ -154,7 +154,7 @@ def parse_dep_graph(document: TeXDocument) -> list[Node]:
 
             if "proved_by" in node_env.userdata:
                 proof_env = node_env.userdata["proved_by"]
-                proof = NodePart(lean_ok=proof_env.userdata.get("leanok", False), text=process_source(proof_env), uses=set(), latex_env=proof_env.tagName)
+                proof = NodePart(lean_ok=proof_env.userdata.get("leanok", False), text=process_source(proof_env), uses=set(), uses_raw=set(), latex_env=proof_env.tagName)
                 node.proof = proof
                 env_to_node[proof_env] = node
 

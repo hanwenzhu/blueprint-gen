@@ -15,6 +15,12 @@ from modify_lean import write_blueprint_attributes
 def main():
     parser = argparse.ArgumentParser(description="Convert existing leanblueprint file to blueprint-gen format.")
     parser.add_argument(
+        "--libraries",
+        nargs="*",
+        help="The names of Lean libraries for conversion. " +
+             "This is only used for adding imports to the LaTeX macros file."
+    )
+    parser.add_argument(
         "--modules",
         nargs="+",
         required=True,
@@ -126,6 +132,12 @@ def main():
             for s in rest_sources:
                 file_content = file_content.replace(s, "")
             file.write_text(file_content)
+    macros_file = blueprint_root / "macros" / "common.tex"
+    if macros_file.exists():
+        macros = macros_file.read_text()
+        for library in args.libraries:
+            macros += f"\n\\input{{../../.lake/build/blueprint/library/{library}}}\n"
+        macros_file.write_text(macros)
 
 
 if __name__ == "__main__":

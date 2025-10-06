@@ -124,6 +124,7 @@ script blueprintConvert (args : List String) do
   IO.eprintln "Calling Python script to convert blueprint to blueprint-gen format"
   runCmd "python3" <| #[
     convertScript.toString] ++
+    #["--libraries"] ++ libs.map (·.name.toString) ++
     #["--modules"] ++ rootMods.map (·.name.toString) ++
     #["--root_file", rootMods[0].leanFile.toString] ++
     args
