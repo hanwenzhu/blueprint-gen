@@ -54,6 +54,9 @@ def insert_docstring_and_attribute(decl: str, new_docstring: str, new_attr: str)
     else:
         attrs = new_attr
 
+    if docstring.strip():
+        docstring = make_docstring(docstring)
+
     if decl.startswith("to_additive"):
         global warned_to_additive
         if not warned_to_additive:
@@ -68,9 +71,9 @@ def insert_docstring_and_attribute(decl: str, new_docstring: str, new_attr: str)
         decl = decl.removeprefix("to_additive").strip()
         if decl:
             decl = decl + " "
-        return f"to_additive (attr := {attrs}) {decl}{make_docstring(docstring)}"
+        return f"to_additive (attr := {attrs}) {decl}{docstring}"
 
-    return f"{command_modifiers}{make_docstring(docstring)}\n@[{attrs}]\n{decl}"
+    return f"{command_modifiers}{docstring}\n@[{attrs}]\n{decl}"
 
 
 def modify_source(node: Node, file: Path, location: DeclarationLocation, add_uses: bool):
@@ -124,7 +127,7 @@ def topological_sort(data: list[tuple[Node, str]]) -> list[tuple[Node, str]]:
     return result
 
 
-def write_blueprint_attributes(nodes: list[NodeWithPos], modules: list[str], root_file: str, skip_informal: bool, add_uses: bool):
+def write_blueprint_attributes(nodes: list[NodeWithPos], modules: list[str], root_file: str, convert_informal: bool, add_uses: bool):
     # Sort nodes by position, so that we can modify later declarations first
     nodes.sort(
         key=lambda n:
@@ -159,13 +162,19 @@ def write_blueprint_attributes(nodes: list[NodeWithPos], modules: list[str], roo
         extra_nodes.append((node, f"attribute [{node.to_lean_attribute()}] {node.name}"))
     # Informal-only nodes
     for node in nodes:
-        if not node.has_lean and not skip_informal:
-            lean = f"{make_docstring(node.statement.text)}\n"
+        if convert_informal and not node.has_lean:
+            lean = ""
+            if node.statement.text.strip():
+                lean += f"{make_docstring(node.statement.text)}\n"
             lean += f"@[{node.to_lean_attribute(add_uses=False, add_proof_text=False, add_proof_uses=False)}]\n"
             if node.proof is None:
-                lean += f"def {node.name} : (sorry : Type) :=\n  sorry_using [{', '.join(node.statement.uses)}]"
+                lean += f"def {node.name} : (sorry : Type) :=\n"
+                lean += f"  sorry_using [{', '.join(node.statement.all_uses())}]"
             else:
-                lean += f"theorem {node.name} : (sorry_using [{', '.join(node.proof.uses)}] : Prop) := by\n  {make_docstring(node.proof.text, indent=2)}\n  sorry_using [{', '.join(node.statement.uses)}]"
+                lean += f"theorem {node.name} : (sorry_using [{', '.join(node.proof.all_uses())}] : Prop) := by\n"
+                if node.proof.text.strip():
+                    lean += f"  {make_docstring(node.proof.text, indent=2)}\n"
+                lean += f"  sorry_using [{', '.join(node.statement.all_uses())}]"
             extra_nodes.append((node, lean))
 
     extra_nodes = topological_sort(extra_nodes)

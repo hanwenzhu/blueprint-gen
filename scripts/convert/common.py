@@ -16,6 +16,7 @@ def _quote(s: str) -> str:
 
 
 class BaseSchema(BaseModel):
+    """A Pydantic base model with camelCase aliases."""
     model_config = ConfigDict(
         alias_generator=to_camel,
         populate_by_name=True,
@@ -27,7 +28,11 @@ class NodePart(BaseSchema):
     lean_ok: bool
     text: str
     uses: set[str]
+    uses_raw: set[str]
     latex_env: str
+
+    def all_uses(self) -> list[str]:
+        return [use for use in self.uses] + [_quote(use) for use in self.uses_raw]
 
 def make_docstring(text: str, indent: int = 0) -> str:
     text = text.strip()
@@ -50,13 +55,13 @@ class Node(BaseSchema):
         # See BlueprintGen/Attribute.lean for the options
         if self.title:
             configs.append(_quote(self.title))
-        if add_uses and self.statement.uses:
-            configs.append(f"(uses := [{', '.join(self.statement.uses)}])")
+        if add_uses and self.statement.all_uses():
+            configs.append(f"(uses := [{', '.join(self.statement.all_uses())}])")
         if self.proof is not None:
-            if add_proof_text:
+            if add_proof_text and self.proof.text.strip():
                 configs.append(f"(proof := {make_docstring(self.proof.text, indent=2)})")
-            if add_proof_uses and self.proof.uses:
-                configs.append(f"(proofUses := [{', '.join(self.proof.uses)}])")
+            if add_proof_uses and self.proof.all_uses():
+                configs.append(f"(proofUses := [{', '.join(self.proof.all_uses())}])")
         if self.not_ready:
             configs.append("(notReady := true)")
         if self.discussion:

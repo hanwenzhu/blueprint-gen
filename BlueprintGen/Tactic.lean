@@ -70,7 +70,8 @@ initialize proofUsingExt : SimplePersistentEnvExtension Entry State ←
 
 end ProofUsing
 
-open ProofUsing
+-- **TODO**: support `sorry_using ["label"]` (which should elaborate to `let _ : RawLabel := "label"` where `RawLabel := String`,
+-- and then collect all terms of type `RawLabel` to the blueprint metadata in `Attribute.lean`).
 
 /--
 `blueprint_using [a, b]` adds `a` and `b` as dependencies for the blueprint metadata.

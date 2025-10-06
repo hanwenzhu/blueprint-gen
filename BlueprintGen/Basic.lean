@@ -16,6 +16,8 @@ structure NodePart where
   text : String
   /-- The names of nodes that this node depends on. -/
   uses : Array Name
+  /-- Additional raw labels of nodes that this node depends on, specified by `uses := ["label"]`. -/
+  usesRaw : Array String := #[]
   /-- The LaTeX environment to use for this part. -/
   latexEnv : String
 deriving Inhabited, Repr, FromJson, ToJson, ToExpr

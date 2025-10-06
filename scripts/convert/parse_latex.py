@@ -126,13 +126,15 @@ def convert_ref_to_texttt(source: str, label_to_node: dict[str, Node]):
 
 def convert_latex_label_to_lean_name(node_part: NodePart, label_to_node: dict[str, Node]):
     """Converts the `uses` and `\\ref` commands to reference Lean names rather than LaTeX labels."""
-    uses_lean = set()
-    for use in node_part.uses:
+    for use in node_part.uses_raw.copy():
         if use in label_to_node:
-            uses_lean.add(label_to_node[use].name)
+            # Convert from LaTeX labels in uses_raw to Lean names in uses, if the used node is formalized
+            used_node = label_to_node[use]
+            if used_node.statement.lean_ok:
+                node_part.uses_raw.remove(use)
+                node_part.uses.add(used_node.name)
         else:
             logger.warning(f"\\uses {use} label not found")
-    node_part.uses = uses_lean
     node_part.text = convert_ref_to_texttt(node_part.text, label_to_node)
 
 
@@ -200,7 +202,11 @@ def parse_nodes(source: str) -> tuple[list[Node], dict[str, list[str]]]:
             logger.warning(f"Lean name {name} occurs in blueprint twice; only keeping the first.")
             node = name_to_node[name]
         else:
-            statement = NodePart(lean_ok=source_info.leanok, text=node_source, uses=set(source_info.uses), latex_env=env)
+            statement = NodePart(
+                lean_ok=source_info.leanok, text=node_source,
+                uses=set(), uses_raw=set(source_info.uses),  # to be converted in the next loop
+                latex_env=env
+            )
             node = Node(name=name, statement=statement, proof=None, not_ready=source_info.notready, discussion=source_info.discussion, title=title)
             nodes.append(node)
             name_to_node[name] = node
@@ -227,7 +233,11 @@ def parse_nodes(source: str) -> tuple[list[Node], dict[str, list[str]]]:
                 logger.warning(f"Cannot determine the statement proved by: {node_source}")
                 continue
 
-        proved.proof = NodePart(lean_ok=source_info.leanok, text=node_source, uses=set(source_info.uses), latex_env=env)
+        proved.proof = NodePart(
+            lean_ok=source_info.leanok, text=node_source,
+            uses=set(), uses_raw=set(source_info.uses),  # to be converted in the next loop
+            latex_env=env
+        )
         name_to_raw_sources.setdefault(proved.name, []).append(match.group(0))
 
     # Convert node \label to node.name

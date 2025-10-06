@@ -16,8 +16,12 @@ structure Config where
   proof : Option String := none
   /-- The set of nodes that this node depends on. Infers from the constant if not present. -/
   uses : Array Name := #[]
+  /-- Additional raw labels of nodes that this node depends on. -/
+  usesRaw : Array String := #[]
   /-- The set of nodes that the proof of this node depends on. Infers from the constant's value if not present. -/
   proofUses : Array Name := #[]
+  /-- Additional raw labels of nodes that the proof of this node depends on. -/
+  proofUsesRaw : Array String := #[]
   /-- The surrounding environment is not ready to be formalized, typically because it requires more blueprint work. -/
   notReady : Bool := false
   /-- A GitHub issue number where the surrounding definition or statement is discussed. -/
@@ -32,8 +36,8 @@ deriving Repr
 
 syntax blueprintHasProofOption := &"hasProof" " := " ("true" <|> "false")
 syntax blueprintProofOption := &"proof" " := " docComment
-syntax blueprintUsesOption := &"uses" " := " "[" ident,* "]"
-syntax blueprintProofUsesOption := &"proofUses" " := " "[" ident,* "]"
+syntax blueprintUsesOption := &"uses" " := " "[" (ident <|> str),* "]"
+syntax blueprintProofUsesOption := &"proofUses" " := " "[" (ident <|> str),* "]"
 syntax blueprintNotReadyOption := &"notReady" " := " ("true" <|> "false")
 syntax blueprintDiscussionOption := &"discussion" " := " num
 syntax blueprintLatexEnvOption := &"latexEnv" " := " str
@@ -83,11 +87,21 @@ def elabBlueprintConfig : Syntax → CoreM Config
         let proof := (← getDocStringText doc).trim
         config := { config with proof }
       | `(blueprintOption| (uses := [$[$ids],*])) =>
-        let uses ← ids.mapM tryResolveConst
-        config := { config with uses }
+        let uses ← ids.filterMapM fun
+          | `(ident| $id:ident) => some <$> tryResolveConst id
+          | _ => pure none
+        let usesRaw := ids.filterMap fun
+          | `(str| $str:str) => some str.getString
+          | _ => none
+        config := { config with uses, usesRaw }
       | `(blueprintOption| (proofUses := [$[$ids],*])) =>
-        let proofUses ← ids.mapM tryResolveConst
-        config := { config with proofUses }
+        let proofUses ← ids.filterMapM fun
+          | `(ident| $id:ident) => some <$> tryResolveConst id
+          | _ => pure none
+        let proofUsesRaw := ids.filterMap fun
+          | `(str| $str:str) => some str.getString
+          | _ => none
+        config := { config with proofUses, proofUsesRaw }
       | `(blueprintOption| (notReady := true)) =>
         config := { config with notReady := .true }
       | `(blueprintOption| (notReady := false)) =>
@@ -128,6 +142,7 @@ def mkStatementPart (name : Name) (cfg : Config) (hasProof : Bool) (used : NameS
     leanOk := !used.contains ``sorryAx
     text := statement
     uses := uses.toArray
+    usesRaw := cfg.usesRaw
     latexEnv := cfg.latexEnv.getD (if hasProof then "theorem" else "definition")
   }
 
@@ -142,6 +157,7 @@ def mkProofPart (name : Name) (cfg : Config) (used : NameSet) : CoreM NodePart :
     leanOk := !used.contains ``sorryAx
     text := proof
     uses := uses.toArray
+    usesRaw := cfg.proofUsesRaw
     latexEnv := "proof"
   }
 

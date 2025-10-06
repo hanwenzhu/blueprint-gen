@@ -154,20 +154,15 @@ Citations are supported using square brackets like `[wiles1995]`, and references
 
 ## Informal-only nodes
 
-At the start of a project, it is possible that not all theorems have their statements formalized in Lean,
-but they nonetheless are in the blueprint.
-For "informal-only" theorems or definitions without formal statements, I recommend writing:
+At the start of a project, it is possible to have theorems or definitions in the blueprint, whose statements are not formalized in Lean.
+For these "informal-only nodes" without formal statements, you can write them in the LaTeX blueprint only, and for Lean theorems to reference the informal theorem (say with label `\label{thm}`), you may write `sorry_using ["thm"]`, `@[blueprint (uses := ["thm"])]`, etc.
+
+An alternative Lean-only approach is writing `sorry` for the statement of the informal-only node as well:
 
 ```lean
-/-- Foo implies bar. -/
 @[blueprint] theorem bar_of_foo : (sorry_using [Foo, Bar] : Prop) := by
-  /-- Proof is trivial. -/
   sorry_using [of_foo, bar_of]
 ```
-
-which allows later theorems to reference this theorem.
-
-Alternatively (less recommended), you can use retain informal theorems in the LaTeX blueprint and only write theorems in Lean if they have statement formalized. This will result in "unknown constant" errors in `sorry_using` and `uses` for formal theorems that depend on informal theorems in LaTeX, which you may ignore by `set_option blueprint.ignoreUnknownConstants true`.
 
 ## Converting from existing blueprint format
 
@@ -185,7 +180,9 @@ lake script run blueprintConvert
 
 Note that this conversion is not perfect and not idempotent, and for large projects it may end in some small syntax errors. You would need to fix the errors in the converted files.
 
-The script will also save `\mathlibok` nodes and informal-only nodes (nodes without `\lean`) to the root Lean module of your project, and you need to move them to appropriate places. Alternatively, you can add `--skip_informal` to the command above to retain the informal-only nodes in LaTeX and not convert them to Lean.
+The script will also save `\mathlibok` nodes to the root Lean module of your project, and you need to move them to appropriate places.
+
+The informal-only nodes (nodes without `\lean`) are by default retained in LaTeX and not converted to Lean. If you want them to be converted, you may add `--convert_informal` to the command above, and then the script will convert them to the root Lean module.
 
 The conversion will remove the `\uses` information in LaTeX and let blueprint-gen automatically infer dependencies in Lean, unless the code contains `sorry` (in which case `uses :=` and `proofUses :=` will be added). If `--add_uses` is specified then all `\uses` information is retained in Lean.
 
