@@ -1,5 +1,6 @@
 import BlueprintGen.Attribute
 import BlueprintGen.Basic
+import BlueprintGen.CollectUsed
 import BlueprintGen.Content
 import BlueprintGen.Load
 import BlueprintGen.Output

@@ -157,13 +157,6 @@ Citations are supported using square brackets like `[wiles1995]`, and references
 At the start of a project, it is possible to have theorems or definitions in the blueprint, whose statements are not formalized in Lean.
 For these "informal-only nodes" without formal statements, you can write them in the LaTeX blueprint only, and for Lean theorems to reference the informal theorem (say with label `\label{thm}`), you may write `sorry_using ["thm"]`, `@[blueprint (uses := ["thm"])]`, etc.
 
-An alternative Lean-only approach is writing `sorry` for the statement of the informal-only node as well:
-
-```lean
-@[blueprint] theorem bar_of_foo : (sorry_using [Foo, Bar] : Prop) := by
-  sorry_using [of_foo, bar_of]
-```
-
 ## Converting from existing blueprint format
 
 With a project that uses the existing leanblueprint format, there is a primitive script that tries to convert to the blueprint-gen format.

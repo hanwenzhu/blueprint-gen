@@ -138,7 +138,12 @@ where
     | .code content => return "\\leancode{" ++ String.join (content.toList.map escapeForLatexBasic) ++ "}"
     | .del texts => return "\\st{" ++ String.join (← texts.mapM textToLatex).toList ++ "}"
     | .latexMath content => return "$" ++ String.join (content.toList.map escapeForLatexBasic) ++ "$"
-    | .latexMathDisplay content => return "$$" ++ String.join (content.toList.map escapeForLatexBasic) ++ "$$"
+    | .latexMathDisplay content =>
+      let math := String.join (content.toList.map escapeForLatexBasic)
+      if ["align", "alignat", "equation"].any fun env => math.startsWith ("\\begin{" ++ env ++ "}") then
+        return math
+      else
+        return s!"$${math}$$"
     | .wikiLink target texts => return "\\href{" ++ String.join (target.map attrTextToLatex).toList ++ "}{" ++ String.join (← texts.mapM textToLatex).toList ++ "}"
   attrTextToLatex (attrText : MD4Lean.AttrText) : Latex :=
     match attrText with

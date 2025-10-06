@@ -51,25 +51,6 @@ elab (name := tacticDocComment) docComment:docComment t:tactic : tactic => do
 
 /-! We implement the `blueprint_using` and `sorry_using` tactics that declares used constants. -/
 
-namespace ProofUsing
-
-abbrev State := SMap Name (Array Name)
-abbrev Entry := Name × Name
-
-private def addEntryFn (s : State) (e : Entry) : State :=
-  match s.find? e.1 with
-  | none => s.insert e.1 #[e.2]
-  | some es => s.insert e.1 (es.push e.2)
-
-initialize proofUsingExt : SimplePersistentEnvExtension Entry State ←
-  registerSimplePersistentEnvExtension {
-    addEntryFn := addEntryFn
-    addImportedFn := fun es => mkStateFromImportedEntries addEntryFn {} es |>.switch
-    asyncMode := .async .asyncEnv
-  }
-
-end ProofUsing
-
 -- **TODO**: support `sorry_using ["label"]` (which should elaborate to `let _ : RawLabel := "label"` where `RawLabel := String`,
 -- and then collect all terms of type `RawLabel` to the blueprint metadata in `Attribute.lean`).
 

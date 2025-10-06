@@ -76,7 +76,7 @@ def main():
 
     # Parse the document into nodes in dependency graph
     logger.info("Parsing nodes in blueprint LaTeX")
-    nodes, name_to_raw_latex_sources = parse_nodes(source)
+    nodes, name_to_raw_latex_sources = parse_nodes(source, args.convert_informal)
 
     # Convert nodes to JSON
     logger.info("Converting nodes to JSON")

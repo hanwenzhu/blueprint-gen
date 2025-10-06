@@ -113,13 +113,18 @@ def convert_ref_to_texttt(source: str, label_to_node: dict[str, Node]):
         label = match.group(1)
         if label not in label_to_node:
             if "_" in label:
-                # If the label contains an underscore, we assume it is still a Lean name and wrap it in \texttt,
-                # even though it is not in the blueprint graph.
+                # If the label contains an underscore (e.g. \label{sec_label}), we assume it is still a Lean name and wrap it in \texttt,
+                # even though it is not in the blueprint graph. This is then converted to `sec_label` instead of \ref{sec_label}, which
+                # avoids errors with escaping the underscore in later conversion from Markdown to LaTeX.
                 return f"\\texttt{{{label}}}"
             else:
+                # Retain the use of \ref
                 return match.group(0)
-        return f"\\texttt{{{label_to_node[label].name}}}"
-    source = re.sub(r"\\ref\s*\{([^\}]*)\}", replace_ref, source)
+        else:
+            return f"\\texttt{{{label_to_node[label].name}}}"
+    # From https://github.com/jgm/pandoc/blob/main/src/Text/Pandoc/Readers/LaTeX/Inline.hs
+    ref_commands = ["ref", "cref", "Cref", "vref", "eqref", "autoref"]
+    source = re.sub(r"\\(?:" + "|".join(ref_commands) + r")\s*\{([^\}]*)\}", replace_ref, source)
     source = source.strip()
     return source
 
@@ -127,14 +132,12 @@ def convert_ref_to_texttt(source: str, label_to_node: dict[str, Node]):
 def convert_latex_label_to_lean_name(node_part: NodePart, label_to_node: dict[str, Node]):
     """Converts the `uses` and `\\ref` commands to reference Lean names rather than LaTeX labels."""
     for use in list(node_part.uses_raw):
+        # Convert from LaTeX labels in uses_raw to Lean names in uses, if the used node is formalized.
+        # Otherwise, keep the LaTeX label in uses_raw.
         if use in label_to_node:
-            # Convert from LaTeX labels in uses_raw to Lean names in uses, if the used node is formalized
             used_node = label_to_node[use]
-            if used_node.statement.lean_ok:
-                node_part.uses_raw.remove(use)
-                node_part.uses.add(used_node.name)
-        else:
-            logger.warning(f"\\uses {use} label not found")
+            node_part.uses_raw.remove(use)
+            node_part.uses.add(used_node.name)
     node_part.text = convert_ref_to_texttt(node_part.text, label_to_node)
 
 
@@ -150,7 +153,7 @@ def process_source(source: str) -> tuple[SourceInfo, str]:
     return parse_and_remove_blueprint_commands(source)
 
 
-# NB: this is essentially not used if --convert_informal is not set
+# NB: this is not used if --convert_informal is not set
 def generate_new_lean_name(visited_names: set[str], base: Optional[str]) -> str:
     """Generate a unique Lean identifier."""
     if base is None:
@@ -164,7 +167,7 @@ def generate_new_lean_name(visited_names: set[str], base: Optional[str]) -> str:
     return generate_new_lean_name(visited_names, f"{base}_{uuid.uuid4().hex}")
 
 
-def parse_nodes(source: str) -> tuple[list[Node], dict[str, list[str]]]:
+def parse_nodes(source: str, convert_informal: bool) -> tuple[list[Node], dict[str, list[str]]]:
     """Parse the nodes in the LaTeX source."""
     match = re.search(r"\\usepackage\s*\[[^\]]*\bthms\s*=\s*([^,\]\}]*)", source)
     if match:
@@ -177,8 +180,8 @@ def parse_nodes(source: str) -> tuple[list[Node], dict[str, list[str]]]:
         re.DOTALL
     )
 
-    # Maps matches[i] to node
-    match_idx_to_node: dict[int, Node] = {}
+    # Maps matches[i] to node, or None if the node is not in Lean and convert_informal is False
+    match_idx_to_node: dict[int, Node | None] = {}
 
     # Parsed nodes
     nodes: list[Node] = []
@@ -196,7 +199,16 @@ def parse_nodes(source: str) -> tuple[list[Node], dict[str, list[str]]]:
             continue
 
         source_info, node_source = process_source(content)
-        name = source_info.lean or generate_new_lean_name(set(name_to_node.keys()), source_info.label)
+        if source_info.lean is not None:
+            name = source_info.lean
+            if source_info.label is not None and source_info.lean != source_info.label:
+                # TODO: address this, by applying convert_latex_label_to_lean_name on all LaTeX content instead of just nodes
+                logger.warning(f"Lean name {source_info.lean} differs from label {source_info.label}")
+        elif not convert_informal:
+            match_idx_to_node[i] = None
+            continue
+        else:
+            name = generate_new_lean_name(set(name_to_node.keys()), source_info.label)
         name_to_raw_sources.setdefault(name, []).append(match.group(0))
 
         if name in name_to_node:
@@ -225,11 +237,13 @@ def parse_nodes(source: str) -> tuple[list[Node], dict[str, list[str]]]:
 
         source_info, node_source = process_source(content)
         proves = source_info.proves
-        if proves is not None:
+        if proves is not None:  # manually specified \proves in plastexdepgraph
             proved = label_to_node[proves]
         else:
             if i - 1 in match_idx_to_node:
                 proved = match_idx_to_node[i - 1]
+                if proved is None:  # informal-only node, ignore
+                    continue
             else:
                 logger.warning(f"Cannot determine the statement proved by: {node_source}")
                 continue

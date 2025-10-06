@@ -1,5 +1,5 @@
 import Lean
-import Batteries.Data.NameSet
+import BlueprintGen.CollectUsed
 import BlueprintGen.Content
 import BlueprintGen.Tactic
 
@@ -118,24 +118,11 @@ def elabBlueprintConfig : Syntax → CoreM Config
 def hasProof (name : Name) (cfg : Config) : CoreM Bool := do
   return cfg.hasProof.getD (cfg.proof.isSome || wasOriginallyTheorem (← getEnv) name)
 
-/-- Returns a pair of sets (constants used by statement, constants used by proof).
-They are disjoint except that possibly both contain `sorryAx`. -/
-def usedConstants (name : Name) : CoreM (NameSet × NameSet) := do
-  let info ← getConstInfo name
-  -- TODO: constructors in case of structure/inductive
-  let typeUsed := info.type.getUsedConstantsAsSet
-  let valueUsed := match info.value? with
-    | some value => value.getUsedConstantsAsSet
-    | none => ∅
-
-  return (typeUsed, valueUsed \ typeUsed.erase ``sorryAx)
-
 def mkStatementPart (name : Name) (cfg : Config) (hasProof : Bool) (used : NameSet) :
     CoreM NodePart := do
   let env ← getEnv
   -- Used constants = constants specified by `uses :=` + blueprint constants used in the statement
-  let uses := used.filter fun c => (blueprintExt.find? env c).isSome
-  let uses := cfg.uses.foldl (·.insert ·) uses
+  let uses := cfg.uses.foldl (·.insert ·) used
   -- Use docstring for statement text
   let statement := ((← findSimpleDocString? env name).getD "").trim
   return {
@@ -149,8 +136,7 @@ def mkStatementPart (name : Name) (cfg : Config) (hasProof : Bool) (used : NameS
 def mkProofPart (name : Name) (cfg : Config) (used : NameSet) : CoreM NodePart := do
   let env ← getEnv
   -- Used constants = constants specified by `proofUses :=` + blueprint constants used in the proof
-  let uses := used.filter fun c => (blueprintExt.find? env c).isSome
-  let uses := cfg.proofUses.foldl (·.insert ·) uses
+  let uses := cfg.proofUses.foldl (·.insert ·) used
   -- Use proof docstring for proof text
   let proof := cfg.proof.getD ("\n\n".intercalate (getProofDocString env name).toList)
   return {
@@ -162,7 +148,7 @@ def mkProofPart (name : Name) (cfg : Config) (used : NameSet) : CoreM NodePart :
   }
 
 def mkNode (name : Name) (cfg : Config) : CoreM Node := do
-  let (statementUsed, proofUsed) ← usedConstants name
+  let (statementUsed, proofUsed) ← collectUsed name
   if ← hasProof name cfg then
     let statement ← mkStatementPart name cfg .true statementUsed
     let proof ← mkProofPart name cfg proofUsed
