@@ -166,12 +166,15 @@ def NodePart.toLatex (part : NodePart) (title : Option String) (additionalConten
   out := out ++ "\\begin{" ++ part.latexEnv ++ "}"
   if let some title := title then
     out := out ++ s!"[{← markdownToLatex title}]"
+
+  out := out ++ additionalContent
   if part.leanOk then
     out := out ++ "\\leanok{}"
   if !part.uses.isEmpty || !part.usesRaw.isEmpty then
     out := out ++ "\\uses{" ++ ",".intercalate (part.uses.map (·.toString) ++ part.usesRaw).toList ++ "}"
+
   out := out ++ (← markdownToLatex part.text)
-  out := out ++ additionalContent
+
   out := out ++ "\\end{" ++ part.latexEnv ++ "}"
   return out
 

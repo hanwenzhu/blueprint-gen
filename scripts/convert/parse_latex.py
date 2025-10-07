@@ -207,6 +207,9 @@ def parse_nodes(source: str, convert_informal: bool) -> tuple[list[Node], dict[s
 
         if env not in depgraph_thm_types:
             continue
+        # Skip if match is commented out
+        if "%" in source[:match.span()[0]].split("\n")[-1].strip():
+            continue
 
         source_info, node_source = process_source(content)
         if source_info.lean is not None:
@@ -242,6 +245,9 @@ def parse_nodes(source: str, convert_informal: bool) -> tuple[list[Node], dict[s
         env, title, content = match.groups()
 
         if env != "proof":
+            continue
+        # Skip if match is commented out
+        if "%" in source[:match.span()[0]].split("\n")[-1].strip():
             continue
 
         source_info, node_source = process_source(content)

@@ -3,6 +3,8 @@ import BlueprintGen.Basic
 
 /-!
 This is similar to Lean's `collectAxioms`, but collects nodes in the blueprint rather than axioms.
+
+TODO: maybe run this at LaTeX output time rather than during @[blueprint] tagging
 -/
 
 namespace BlueprintGen
@@ -25,17 +27,18 @@ partial def collect (c : Name) : M Unit := do
     let env ← read
     if (blueprintExt.find? env c).isSome then
       modify fun s => { s with used := s.used.push c }
-    -- This line is `match env.checked.get.find? c with` in Lean.CollectAxioms
-    match env.find? c with
-    | some (ConstantInfo.axiomInfo v)  => collectExpr v.type
-    | some (ConstantInfo.defnInfo v)   => collectExpr v.type *> collectExpr v.value
-    | some (ConstantInfo.thmInfo v)    => collectExpr v.type *> collectExpr v.value
-    | some (ConstantInfo.opaqueInfo v) => collectExpr v.type *> collectExpr v.value
-    | some (ConstantInfo.quotInfo _)   => pure ()
-    | some (ConstantInfo.ctorInfo v)   => collectExpr v.type
-    | some (ConstantInfo.recInfo v)    => collectExpr v.type
-    | some (ConstantInfo.inductInfo v) => collectExpr v.type *> v.ctors.forM collect
-    | none                             => pure ()
+    else
+      -- This line is `match env.checked.get.find? c with` in Lean.CollectAxioms
+      match env.find? c with
+      | some (ConstantInfo.axiomInfo v)  => collectExpr v.type
+      | some (ConstantInfo.defnInfo v)   => collectExpr v.type *> collectExpr v.value
+      | some (ConstantInfo.thmInfo v)    => collectExpr v.type *> collectExpr v.value
+      | some (ConstantInfo.opaqueInfo v) => collectExpr v.type *> collectExpr v.value
+      | some (ConstantInfo.quotInfo _)   => pure ()
+      | some (ConstantInfo.ctorInfo v)   => collectExpr v.type
+      | some (ConstantInfo.recInfo v)    => collectExpr v.type
+      | some (ConstantInfo.inductInfo v) => collectExpr v.type *> v.ctors.forM collect
+      | none                             => pure ()
 
 end CollectUsed
 
