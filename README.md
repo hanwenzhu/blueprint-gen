@@ -165,7 +165,7 @@ Currently, this script depends on a recent version of Python with `loguru` and `
 
 First go to a clean branch **without any uncomitted changes**, to prevent overwriting any work you have done.
 
-You can then convert to blueprint-gen format by adding `blueprint-gen` as a dependency to lakefile, run `lake update blueprint-gen`, and then run:
+You can then convert to blueprint-gen format by adding `blueprint-gen` as a dependency to lakefile, run `lake update blueprint-gen`, ensure `leanblueprint checkdecls` works (i.e. all `\lean` are in Lean), and then run:
 
 ```sh
 lake script run blueprintConvert
@@ -173,9 +173,7 @@ lake script run blueprintConvert
 
 Note that this conversion is not perfect and not idempotent, and for large projects it may end in some small syntax errors. You would need to fix the errors in the converted files.
 
-The script will also save `\mathlibok` nodes to the root Lean module of your project, and you need to move them to appropriate places.
-
-The informal-only nodes (nodes without `\lean`) are by default retained in LaTeX and not converted to Lean. If you want them to be converted, you may add `--convert_informal` to the command above, and then the script will convert them to the root Lean module.
+The informal-only nodes (nodes without `\lean`) are by default retained in LaTeX and not converted to Lean. If you want them to be converted, you may add `--convert_informal` to the command above, and then the script will convert them and save to the root Lean module.
 
 The conversion will remove the `\uses` information in LaTeX and let blueprint-gen automatically infer dependencies in Lean, unless the code contains `sorry` (in which case `uses :=` and `proofUses :=` will be added). If `--add_uses` is specified then all `\uses` information is retained in Lean.
 

@@ -50,20 +50,32 @@ class Node(BaseSchema):
     discussion: Optional[int]
     title: Optional[str]
 
-    def to_lean_attribute(self, add_statement_text: bool = True, add_uses: bool = True, add_proof_text: bool = True, add_proof_uses: bool = True) -> str:
+    @property
+    def uses(self) -> set[str]:
+        return self.statement.uses | (self.proof.uses if self.proof is not None else set())
+
+    def to_lean_attribute(
+        self,
+        add_statement_text: bool = True, add_uses: bool = True, add_uses_raw: bool = True,
+        add_proof_text: bool = True, add_proof_uses: bool = True, add_proof_uses_raw: bool = True
+    ) -> str:
         configs = []
         # See BlueprintGen/Attribute.lean for the options
         if self.title:
             configs.append(_quote(self.title))
         if add_statement_text and self.statement.text.strip():
             configs.append(f"(statement := {make_docstring(self.statement.text, indent=2)})")
-        if add_uses and self.statement.all_uses():
-            configs.append(f"(uses := [{', '.join(self.statement.all_uses())}])")
+        if add_uses and self.statement.uses:
+            configs.append(f"(uses := [{', '.join(self.statement.uses)}])")
+        if add_uses_raw and self.statement.uses_raw:
+            configs.append(f"(uses := [{', '.join(_quote(use) for use in self.statement.uses_raw)}])")
         if self.proof is not None:
             if add_proof_text and self.proof.text.strip():
                 configs.append(f"(proof := {make_docstring(self.proof.text, indent=2)})")
-            if add_proof_uses and self.proof.all_uses():
-                configs.append(f"(proofUses := [{', '.join(self.proof.all_uses())}])")
+            if add_proof_uses and self.proof.uses:
+                configs.append(f"(proofUses := [{', '.join(self.proof.uses)}])")
+            if add_proof_uses_raw and self.proof.uses_raw:
+                configs.append(f"(proofUses := [{', '.join(_quote(use) for use in self.proof.uses_raw)}])")
         if self.not_ready:
             configs.append("(notReady := true)")
         if self.discussion:

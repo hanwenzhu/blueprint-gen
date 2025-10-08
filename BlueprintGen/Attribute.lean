@@ -102,7 +102,7 @@ def elabBlueprintConfig : Syntax → CoreM Config
         let usesRaw := ids.filterMap fun
           | `(str| $str:str) => some str.getString
           | _ => none
-        config := { config with uses, usesRaw }
+        config := { config with uses := config.uses ++ uses, usesRaw := config.usesRaw ++ usesRaw }
       | `(blueprintOption| (proofUses := [$[$ids],*])) =>
         let proofUses ← ids.filterMapM fun
           | `(ident| $id:ident) => some <$> tryResolveConst id
@@ -110,7 +110,7 @@ def elabBlueprintConfig : Syntax → CoreM Config
         let proofUsesRaw := ids.filterMap fun
           | `(str| $str:str) => some str.getString
           | _ => none
-        config := { config with proofUses, proofUsesRaw }
+        config := { config with proofUses := config.proofUses ++ proofUses, proofUsesRaw := config.proofUsesRaw ++ proofUsesRaw }
       | `(blueprintOption| (notReady := true)) =>
         config := { config with notReady := .true }
       | `(blueprintOption| (notReady := false)) =>
@@ -131,6 +131,7 @@ def mkStatementPart (name : Name) (cfg : Config) (hasProof : Bool) (used : NameS
     CoreM NodePart := do
   let env ← getEnv
   -- Used constants = constants specified by `uses :=` + blueprint constants used in the statement
+  let used := used.filter fun c => (blueprintExt.find? env c).isSome
   let uses := cfg.uses.foldl (·.insert ·) used
   -- Use docstring for statement text
   let statement := cfg.statement.getD ((← findSimpleDocString? env name).getD "").trim
@@ -145,6 +146,7 @@ def mkStatementPart (name : Name) (cfg : Config) (hasProof : Bool) (used : NameS
 def mkProofPart (name : Name) (cfg : Config) (used : NameSet) : CoreM NodePart := do
   let env ← getEnv
   -- Used constants = constants specified by `proofUses :=` + blueprint constants used in the proof
+  let used := used.filter fun c => (blueprintExt.find? env c).isSome
   let uses := cfg.proofUses.foldl (·.insert ·) used
   -- Use proof docstring for proof text
   let proof := cfg.proof.getD ("\n\n".intercalate (getProofDocString env name).toList)

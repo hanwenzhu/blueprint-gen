@@ -76,16 +76,21 @@ def insert_docstring_and_attribute(decl: str, new_docstring: str, new_attr: str)
     return f"{command_modifiers}{docstring}\n@[{attrs}]\n{decl}"
 
 
-def modify_source(node: Node, file: Path, location: DeclarationLocation, add_uses: bool):
+def modify_source(node: Node, file: Path, location: DeclarationLocation, add_uses: bool, prepend: list[str] | None = None):
     """Modify a Lean source file to add @[blueprint] attribute and docstring to the node."""
     source = file.read_text()
     pre, decl, post = split_declaration(source, location.range.pos, location.range.end_pos)
-    # If there is `sorry` in a definition, then the inferred dependencies are incomplete, so `uses` is needed
+    # If there needs to be raw `uses` added, or there is `sorry`, then the inferred dependencies are incomplete, so `uses` is needed
     add_uses = add_uses or (node.proof is None and "sorry" in decl)
-    # If there is `sorry` in a proof, then the inferred proof dependencies are incomplete, so `proofUses` is needed
+    add_uses_raw = add_uses or len(node.statement.uses_raw) > 0
     add_proof_uses = add_uses or (node.proof is not None and "sorry" in decl)
-    attr = node.to_lean_attribute(add_statement_text=False, add_uses=add_uses, add_proof_uses=add_proof_uses)
+    add_proof_uses_raw = add_uses or (node.proof is not None and len(node.proof.uses_raw) > 0)
+    attr = node.to_lean_attribute(
+        add_statement_text=False, add_uses=add_uses, add_uses_raw=add_uses_raw, add_proof_uses=add_proof_uses, add_proof_uses_raw=add_proof_uses_raw
+    )
     decl = insert_docstring_and_attribute(decl, new_docstring=node.statement.text, new_attr=attr)
+    if prepend is not None:
+        decl = "".join(p + "\n\n" for p in prepend) + decl
     file.write_text(pre + decl + post)
 
 
@@ -103,11 +108,11 @@ def add_blueprint_gen_import(file: Path):
     file.write_text(source)
 
 
-def topological_sort(data: list[tuple[Node, str]]) -> list[tuple[Node, str]]:
-    name_to_node: dict[str, tuple[Node, str]] = {node.name: (node, value) for node, value in data}
+def topological_sort(data: list[tuple[NodeWithPos, str]]) -> list[tuple[NodeWithPos, str]]:
+    name_to_node: dict[str, tuple[NodeWithPos, str]] = {node.name: (node, value) for node, value in data}
 
     visited: set[str] = set()
-    result: list[tuple[Node, str]] = []
+    result: list[tuple[NodeWithPos, str]] = []
 
     def visit(name: str):
         if name in visited:
@@ -115,8 +120,7 @@ def topological_sort(data: list[tuple[Node, str]]) -> list[tuple[Node, str]]:
         visited.add(name)
 
         node, value = name_to_node[name]
-        uses = node.statement.uses | (node.proof.uses if node.proof is not None else set())
-        for used in uses:
+        for used in node.uses:
             if used in name_to_node:
                 visit(used)
         result.append((node, value))
@@ -128,41 +132,32 @@ def topological_sort(data: list[tuple[Node, str]]) -> list[tuple[Node, str]]:
 
 
 def write_blueprint_attributes(nodes: list[NodeWithPos], modules: list[str], root_file: str, convert_informal: bool, add_uses: bool):
-    # Sort nodes by position, so that we can modify later declarations first
-    nodes.sort(
+    # Sort nodes by reverse position, so that we can modify later declarations first
+    nodes_location_order = sorted(
+        nodes,
         key=lambda n:
             (n.location.module, n.location.range.pos.line) if n.location is not None else ("", 0),
         reverse=True
     )
+    nodes_topological_order = [n for n, _ in topological_sort([(n, "") for n in nodes])]
 
-    modified_files: set[str] = set()
-    upstream_nodes: list[Node] = []
+    # For upstream nodes and informal-only nodes, they are rendered as `attribute [blueprint] node_name` and
+    # `theorem node_name : (sorry_using [uses] : Prop) := by sorry_using [uses]` respectively,
+    # and prepended to normal nodes that directly depend on them.
+    # If no such normal node exists, the upstream node is added to the root file.
 
-    for node in nodes:
-        if not node.has_lean or node.location is None or node.file is None:
-            continue
-
-        if not any(node.location.module.split(".")[0] == module for module in modules):
-            # These nodes are in the blueprint but not in the project itself
-            # Typically, these are \mathlibok nodes
-            upstream_nodes.append(node)
-            continue
-
-        modify_source(node, Path(node.file), node.location, add_uses=add_uses)
-        modified_files.add(node.file)
-
-    for file in modified_files:
-        add_blueprint_gen_import(Path(file))
-
+    # Mapping from normal node to strings that should be prepended to it.
+    prepends: dict[str, list[str]] = {n.name: [] for n in nodes}
     # The extra Lean source to be inserted somewhere in the project,
-    # containing (1) upstream (\mathlibok) nodes and (2) informal-only nodes not yet in Lean
-    extra_nodes: list[tuple[Node, str]] = []
-    # Upstream nodes
-    for node in upstream_nodes:
-        extra_nodes.append((node, f"attribute [{node.to_lean_attribute()}] {node.name}"))
-    # Informal-only nodes
-    for node in nodes:
-        if convert_informal and not node.has_lean:
+    # containing (1) upstream nodes and (2) informal-only nodes,
+    # that are not directly used by any normal node in the blueprint
+    extra_nodes: list[str] = []
+    def is_upstream_or_informal(node: NodeWithPos) -> bool:
+        return node.location is None or not any(node.location.module.split(".")[0] == module for module in modules)
+    def upstream_or_informal_to_lean(node: NodeWithPos) -> str:
+        if node.location is not None:
+            return f"attribute [{node.to_lean_attribute()}] {node.name}"
+        else:
             lean = ""
             if node.statement.text.strip():
                 lean += f"{make_docstring(node.statement.text)}\n"
@@ -175,22 +170,39 @@ def write_blueprint_attributes(nodes: list[NodeWithPos], modules: list[str], roo
                 if node.proof.text.strip():
                     lean += f"  {make_docstring(node.proof.text, indent=2)}\n"
                 lean += f"  sorry_using [{', '.join(node.statement.all_uses())}]"
-            extra_nodes.append((node, lean))
+            return lean
+    for node in nodes_topological_order:
+        if is_upstream_or_informal(node):
+            for normal_node in nodes_topological_order[nodes_topological_order.index(node):]:
+                if not is_upstream_or_informal(normal_node) and node.name in normal_node.uses:
+                    prepends[normal_node.name].append(upstream_or_informal_to_lean(node))
+                    break
+            else:
+                extra_nodes.append(upstream_or_informal_to_lean(node))
 
-    extra_nodes = topological_sort(extra_nodes)
+    # Main loop for adding @[blueprint] attributes to nodes
+    modified_files: set[str] = set()
 
+    for node in nodes_location_order:
+        if is_upstream_or_informal(node):
+            continue
+        assert node.has_lean and node.file is not None and node.location is not None
+        modify_source(
+            node, Path(node.file), node.location, add_uses=add_uses,
+            prepend=prepends[node.name]
+        )
+        modified_files.add(node.file)
+
+    for file in modified_files:
+        add_blueprint_gen_import(Path(file))
+
+    # Write extra nodes to the root file
     if extra_nodes:
         extra_nodes_file = Path(root_file)
-        if convert_informal:
-            logger.warning(
-                f"Outputting some nodes whose locations could not be determined to\n  {extra_nodes_file}\n" +
-                "You may want to move them to appropriate locations."
-            )
-        else:
-            logger.warning(
-                f"Outputting some attributes of upstream (e.g. mathlib) nodes to\n  {extra_nodes_file}\n" +
-                "You may want to move them to appropriate locations."
-            )
+        logger.warning(
+            f"Outputting some nodes to\n  {extra_nodes_file}\n" +
+            "You may want to move them to appropriate locations."
+        )
         imports = "import BlueprintGen"
         if extra_nodes_file.exists():
             existing = extra_nodes_file.read_text()
@@ -198,5 +210,5 @@ def write_blueprint_attributes(nodes: list[NodeWithPos], modules: list[str], roo
             existing = ""
         extra_nodes_file.write_text(
             existing + imports + "\n\n" +
-            "\n\n".join(lean for _, lean in extra_nodes) + "\n"
+            "\n\n".join(lean for lean in extra_nodes) + "\n"
         )

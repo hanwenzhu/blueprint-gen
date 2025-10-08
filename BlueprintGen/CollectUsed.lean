@@ -2,7 +2,8 @@ import Lean
 import BlueprintGen.Basic
 
 /-!
-This is similar to Lean's `collectAxioms`, but collects nodes in the blueprint rather than axioms.
+This is similar to Lean's `collectAxioms`, but collects nodes in the blueprint (plus all axioms)
+rather than just axioms.
 
 TODO: maybe run this at LaTeX output time rather than during @[blueprint] tagging
 -/
@@ -30,7 +31,7 @@ partial def collect (c : Name) : M Unit := do
     else
       -- This line is `match env.checked.get.find? c with` in Lean.CollectAxioms
       match env.find? c with
-      | some (ConstantInfo.axiomInfo v)  => collectExpr v.type
+      | some (ConstantInfo.axiomInfo _)  => modify fun s => { s with used := s.used.push c }
       | some (ConstantInfo.defnInfo v)   => collectExpr v.type *> collectExpr v.value
       | some (ConstantInfo.thmInfo v)    => collectExpr v.type *> collectExpr v.value
       | some (ConstantInfo.opaqueInfo v) => collectExpr v.type *> collectExpr v.value
