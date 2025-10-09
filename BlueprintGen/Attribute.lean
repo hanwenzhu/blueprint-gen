@@ -130,13 +130,14 @@ def hasProof (name : Name) (cfg : Config) : CoreM Bool := do
 def mkStatementPart (name : Name) (cfg : Config) (hasProof : Bool) (used : NameSet) :
     CoreM NodePart := do
   let env ← getEnv
+  let leanOk := !used.contains ``sorryAx
   -- Used constants = constants specified by `uses :=` + blueprint constants used in the statement
-  let used := used.filter fun c => (blueprintExt.find? env c).isSome
-  let uses := cfg.uses.foldl (·.insert ·) used
+  let uses := used.filter fun c => (blueprintExt.find? env c).isSome
+  let uses := cfg.uses.foldl (·.insert ·) uses
   -- Use docstring for statement text
   let statement := cfg.statement.getD ((← findSimpleDocString? env name).getD "").trim
   return {
-    leanOk := !used.contains ``sorryAx
+    leanOk
     text := statement
     uses := uses.toArray
     usesRaw := cfg.usesRaw
@@ -145,13 +146,14 @@ def mkStatementPart (name : Name) (cfg : Config) (hasProof : Bool) (used : NameS
 
 def mkProofPart (name : Name) (cfg : Config) (used : NameSet) : CoreM NodePart := do
   let env ← getEnv
+  let leanOk := !used.contains ``sorryAx
   -- Used constants = constants specified by `proofUses :=` + blueprint constants used in the proof
-  let used := used.filter fun c => (blueprintExt.find? env c).isSome
-  let uses := cfg.proofUses.foldl (·.insert ·) used
+  let uses := used.filter fun c => (blueprintExt.find? env c).isSome
+  let uses := cfg.proofUses.foldl (·.insert ·) uses
   -- Use proof docstring for proof text
   let proof := cfg.proof.getD ("\n\n".intercalate (getProofDocString env name).toList)
   return {
-    leanOk := !used.contains ``sorryAx
+    leanOk
     text := proof
     uses := uses.toArray
     usesRaw := cfg.proofUsesRaw

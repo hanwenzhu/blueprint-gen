@@ -60,14 +60,6 @@ leanblueprint web
 
 If you see LaTeX errors here, you may need to manually fix some docstrings so that the generated LaTeX compiles.
 
-You may also want to put this in the GitHub Actions workflow typically at `.github/workflows/blueprint.yml`:
-
-```yaml
-      # Before "Build blueprint and copy to `home_page/blueprint`":
-      - name: Extract blueprint
-        run: ~/.elan/bin/lake build :blueprint
-```
-
 (See also the instructions for converting from an existing blueprint below.)
 
 ## Example
@@ -182,6 +174,29 @@ Docstrings are converted from LaTeX to Markdown using Pandoc. If there is inform
 You may use `--blueprint_root <root>` to specify the path to your blueprint, if it is not the default.
 
 (For reference, it takes a few minutes to convert [FLT](https://github.com/ImperialCollegeLondon/FLT) to blueprint-gen format and fix all errors, and it might take longer to fix all warnings and make the output look nicer.)
+
+## GitHub Actions integration
+
+If building the blueprint is part of the GitHub CI action, then you need to run `lake build :blueprint` before building the blueprint,
+so that the `\input` line above works. Here are some typical examples for doing this:
+
+- If you use `.github/workflows/blueprint.yml` from leanblueprint, then add the following step:
+
+```yaml
+      # Before "Build blueprint and copy to `home_page/blueprint`":
+      - name: Extract blueprint
+        run: ~/.elan/bin/lake build :blueprint
+```
+
+- If you use `.github/workflows/build-project.yml` from LeanProject, then add this `build-args` option to `leanprover/lean-action`:
+
+```yaml
+      - name: Build the project
+        uses: leanprover/lean-action@...
+        with:
+          use-github-cache: false
+          build-args: :blueprint
+```
 
 ## Extracting nodes in JSON
 
