@@ -191,7 +191,7 @@ def parse_nodes(source: str, convert_informal: bool) -> tuple[list[Node], dict[s
     )
 
     # Maps matches[i] to node, or None if the node is not in Lean and convert_informal is False
-    match_idx_to_node: dict[int, Node | None] = {}
+    match_idx_to_node: dict[int, Optional[Node]] = {}
 
     # Parsed nodes
     nodes: list[Node] = []

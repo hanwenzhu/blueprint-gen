@@ -3,7 +3,7 @@ import Batteries.Lean.NameMapAttribute
 import BlueprintGen.Basic
 
 
-open Lean Elab Tactic
+open Lean Elab Tactic Meta
 
 namespace BlueprintGen
 
@@ -68,7 +68,7 @@ elab "blueprint_using" " [" ids:ident,* "]" : tactic => do
     let ty := info.instantiateTypeLevelParams lvls
     let const := mkConst used lvls
     liftMetaTactic1 fun g => do
-      let g' ← g.define (← Meta.mkFreshBinderNameForTactic `blueprint_using) ty const
+      let g' ← g.define (← mkFreshBinderNameForTactic `blueprint_using) ty const
       let (_, g'') ← g'.intro1P
       return g''
 
@@ -83,10 +83,9 @@ elab (name := tacticSorryUsing) "sorry_using" " [" ids:ident,* "]" : tactic => d
     let mut g := g
     -- We touch every local hypothesis to avoid unused variable linter
     -- This is not an elegant solution, but it works
-    for ldecl in ← getLCtx do
-      unless ldecl.isImplementationDetail do
-        g ← g.define (← Meta.mkFreshBinderNameForTactic `sorry_using) ldecl.type ldecl.toExpr
-        (_, g) ← g.intro1P
+    for h in ← getLocalHyps do
+      g ← g.define (← mkFreshBinderNameForTactic `sorry_using) (← inferType h) h
+      (_, g) ← g.intro1P
     -- A non-synthetic sorry because the `sorry_using` tactic is explicitly written by the user
     g.admit (synthetic := false)
     return g

@@ -76,12 +76,12 @@ partial def postprocessMarkdownText (s : String) : m String := do
     return allBracketed.foldl (init := s) fun s bracketed =>
       s.replace s!"[{bracketed}]" (s!"\\" ++ citeCommand ++ "{" ++ bracketed ++ "}")
 where
-  findAllEnclosed (s : String) (bracketStart bracketEnd : Char) (notFollowedBy : Char → Bool) (i : String.Pos := 0) (ret : Array String := ∅) : Array String :=
-    let lps := s.posOfAux bracketStart s.endPos i + ⟨1⟩
+  findAllEnclosed (s : String) (bracketStart bracketEnd : Char) (notFollowedBy : Char → Bool) (i : String.Pos.Raw := 0) (ret : Array String := ∅) : Array String :=
+    let lps := ⟨(s.posOfAux bracketStart s.endPos i).byteIdx + 1⟩
     if lps < s.endPos then
       let lpe := s.posOfAux bracketEnd s.endPos lps
-      let nextPos := lpe + ⟨1⟩
-      if lpe < s.endPos && (!nextPos.isValid s || !notFollowedBy (s.get nextPos)) then
+      let nextPos : String.Pos.Raw := ⟨lpe.byteIdx + 1⟩
+      if lpe < s.endPos && (!nextPos.isValid s || !notFollowedBy (nextPos.get s)) then
         let bracketed := Substring.toString ⟨s, lps, lpe⟩
         findAllEnclosed s bracketStart bracketEnd notFollowedBy lpe (ret.push bracketed)
       else
@@ -135,7 +135,7 @@ where
     | .a href _title _isAuto texts => return "\\href{" ++ String.join (href.map attrTextToLatex).toList ++ "}{" ++ String.join (← texts.mapM textToLatex).toList ++ "}"
     | .img src _title _alt => return "\\includegraphics{" ++ String.join (src.map attrTextToLatex).toList ++ "}"
     -- \leancode converts inline code to \ref where possible. If not a valid reference, this defaults to \texttt{\detokenize{content}}
-    -- (see `latexPreamble`; **TODO**: use \verb or \Verb instead).
+    -- (see `latexPreamble`; **TODO**: use \verb or \Verb instead if possible).
     | .code content => return "\\leancode{" ++ String.join (content.toList.map escapeForLatexBasic) ++ "}"
     | .del texts => return "\\st{" ++ String.join (← texts.mapM textToLatex).toList ++ "}"
     | .latexMath content => return "$" ++ String.join (content.toList.map escapeForLatexBasic) ++ "$"

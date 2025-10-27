@@ -2,6 +2,7 @@
 
 from pathlib import Path
 import re
+from typing import Optional
 
 from loguru import logger
 
@@ -76,7 +77,7 @@ def insert_docstring_and_attribute(decl: str, new_docstring: str, new_attr: str)
     return f"{command_modifiers}{docstring}\n@[{attrs}]\n{decl}"
 
 
-def modify_source(node: Node, file: Path, location: DeclarationLocation, add_uses: bool, prepend: list[str] | None = None):
+def modify_source(node: Node, file: Path, location: DeclarationLocation, add_uses: bool, prepend: Optional[list[str]] = None):
     """Modify a Lean source file to add @[blueprint] attribute and docstring to the node."""
     source = file.read_text()
     pre, decl, post = split_declaration(source, location.range.pos, location.range.end_pos)
