@@ -124,7 +124,7 @@ The (automatic) output of the above example Lean script is:
 
 ![Blueprint web](https://raw.githubusercontent.com/hanwenzhu/blueprint-gen-example/refs/heads/main/images/web.png)
 
-With depedency graph:
+With dependency graph:
 
 ![Depedency graph](https://raw.githubusercontent.com/hanwenzhu/blueprint-gen-example/refs/heads/main/images/depgraph.png)
 
