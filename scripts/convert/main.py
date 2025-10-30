@@ -30,6 +30,11 @@ def main():
              "and their (sub)modules will be modified to add @[blueprint] attributes."
     )
     parser.add_argument(
+        "--nodes",
+        nargs="*",
+        help="The Lean declaration names of blueprint nodes to convert. If not provided, all nodes in the blueprint will be converted."
+    )
+    parser.add_argument(
         "--blueprint_root",
         type=str,
         default=None,
@@ -78,6 +83,8 @@ def main():
     # Parse the document into nodes in dependency graph
     logger.info("Parsing nodes in blueprint LaTeX")
     nodes, name_to_raw_latex_sources, label_to_node = parse_nodes(source, args.convert_informal)
+    if args.nodes:
+        nodes = [node for node in nodes if node.name in args.nodes]
 
     # Convert nodes to JSON
     logger.info("Converting nodes to JSON")

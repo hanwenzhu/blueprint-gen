@@ -30,19 +30,14 @@ def write_latex_source(
     convert_informal: bool,
     libraries: list[str]
 ):
-    # Convert nodes to \inputleannode
-    name_to_node_with_pos = {node.name: node for node in nodes_with_pos}
-    for name, raw_latex_sources in name_to_raw_latex_sources.items():
-        if name not in name_to_node_with_pos:
-            logger.warning(f"Node {name} not found in nodes_with_pos")
-            continue
+    for node in nodes_with_pos:
         # If not convert_informal, skip writing \inputleannode for nodes that are not in Lean
-        if not convert_informal and not name_to_node_with_pos[name].has_lean:
+        if not convert_informal and not node.has_lean:
             continue
-        first_source, *rest_sources = raw_latex_sources
+        first_source, *rest_sources = name_to_raw_latex_sources[node.name]
         for file in blueprint_root.glob("**/*.tex"):
             file_content = file.read_text()
-            file_content = file_content.replace(first_source, f"\\inputleannode{{{name}}}")
+            file_content = file_content.replace(first_source, f"\\inputleannode{{{node.name}}}")
             for s in rest_sources:
                 file_content = file_content.replace(s, "")
             file.write_text(file_content)

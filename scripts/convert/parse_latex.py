@@ -268,7 +268,7 @@ def parse_nodes(source: str, convert_informal: bool) -> tuple[list[Node], dict[s
             uses=set(), uses_raw=set(source_info.uses),  # to be converted in the next loop
             latex_env=env
         )
-        name_to_raw_sources.setdefault(proved.name, []).append(match.group(0))
+        name_to_raw_sources[proved.name].append(match.group(0))
 
     # Convert node \label to node.name
     for node in nodes:
