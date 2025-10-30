@@ -18,9 +18,8 @@ def convert_latex_label_to_lean_name(source: str, label_to_node: dict[str, Node]
         # Blueprint \uses
         "uses"
     ]
-    soruce = re.sub(r"\\(" + "|".join(ref_commands) + r")\s*\{([^\}]*)\}", replace_ref, source)
-    soruce = soruce.strip()
-    return soruce
+    source = re.sub(r"\\(" + "|".join(ref_commands) + r")\s*\{([^\}]*)\}", replace_ref, source)
+    return source
 
 def write_latex_source(
     nodes_with_pos: list[NodeWithPos],
