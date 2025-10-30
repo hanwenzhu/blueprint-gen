@@ -48,7 +48,7 @@ def find_and_remove_command_arguments(command: str, source: str, sub_count: int 
 def find_and_remove_command_argument(command: str, source: str) -> tuple[Optional[str], str]:
     args, source = find_and_remove_command_arguments(command, source, sub_count=1)
     if len(args) > 1:
-        logger.warning(f"Multiple \\{command} arguments found: {[_quote(arg) for arg in args]}; only using the first one.")
+        logger.warning(f"Multiple \\{command} arguments found: {', '.join(args)}; only using the first one.")
     return args[0] if args else None, source
 
 
