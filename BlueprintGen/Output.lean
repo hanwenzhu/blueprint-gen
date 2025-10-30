@@ -144,7 +144,7 @@ where
       -- $$...$$ is translated to $$...$$ in LaTeX
       -- But $$\begin{align}...\end{align}$$ is translated to \begin{align}...\end{align} instead without $$
       -- This is because we want to support environments beyond the basic math environment $$...$$.
-      -- This list is from https://github.com/jgm/pandoc/blob/d353e1d11cb582706d9e2e00fa2216cc77d1f175/src/Text/Pandoc/Writers/LaTeX.hs
+      -- This list is from https://github.com/jgm/pandoc/blob/main/src/Text/Pandoc/Writers/LaTeX.hs
       let displayMathEnvs := ["align", "align*", "flalign", "flalign*", "alignat", "alignat*", "dmath", "dmath*", "dgroup", "dgroup*", "darray", "darray*", "gather", "gather*", "multline", "multline*", "split", "subequations", "equation", "equation*", "eqnarray", "displaymath"]
       if displayMathEnvs.any fun env => math.startsWith ("\\begin{" ++ env ++ "}") then
         return math

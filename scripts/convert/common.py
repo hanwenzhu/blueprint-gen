@@ -137,6 +137,10 @@ def pandoc_convert_latex_to_markdown(latex: str) -> str:
         latex
     )
 
+    # Fix for pandoc bug: https://github.com/jgm/pandoc/issues/11257
+    # Remove paragraph breaks before \end.
+    converted = re.sub(r"\s*\n\s*\\end\s*\{(.*?)\}", r"\n\\end{\1}", converted)
+
     # Postprocess outputs of \ref commands
     # Here, the \ref commands that refer to depgraph nodes were already replaced with \verb in parse_latex.py
     # Pandoc converts the rest (e.g. \ref{chapter-label}) to [\[chapter-label\]](#chapter-label), which we convert back to \ref{chapter-label}
