@@ -76,12 +76,12 @@ partial def postprocessMarkdownText (s : String) : m String := do
     return allBracketed.foldl (init := s) fun s bracketed =>
       s.replace s!"[{bracketed}]" (s!"\\" ++ citeCommand ++ "{" ++ bracketed ++ "}")
 where
-  findAllEnclosed (s : String) (bracketStart bracketEnd : Char) (notFollowedBy : Char → Bool) (i : String.Pos.Raw := 0) (ret : Array String := ∅) : Array String :=
+  findAllEnclosed (s : String) (bracketStart bracketEnd : Char) (notFollowedBy : Char → Bool) (i : String.Pos := 0) (ret : Array String := ∅) : Array String :=
     let lps := ⟨(s.posOfAux bracketStart s.endPos i).byteIdx + 1⟩
     if lps < s.endPos then
       let lpe := s.posOfAux bracketEnd s.endPos lps
-      let nextPos : String.Pos.Raw := ⟨lpe.byteIdx + 1⟩
-      if lpe < s.endPos && (!nextPos.isValid s || !notFollowedBy (nextPos.get s)) then
+      let nextPos : String.Pos := ⟨lpe.byteIdx + 1⟩
+      if lpe < s.endPos && (!nextPos.isValid s || !notFollowedBy (s.get nextPos)) then
         let bracketed := Substring.toString ⟨s, lps, lpe⟩
         findAllEnclosed s bracketStart bracketEnd notFollowedBy lpe (ret.push bracketed)
       else
