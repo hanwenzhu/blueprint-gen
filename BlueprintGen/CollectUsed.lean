@@ -57,12 +57,12 @@ def collectUsed [Monad m] [MonadEnv m] [MonadError m] (constName : Name) :
   let info ← getConstInfo constName
   for c in info.type.getUsedConstants do
     (_, s) := ((CollectUsed.collect c).run env).run s
-  let typeUsed := NameSet.ofArray s.used
+  let typeUsed := s.used.foldl (·.insert ·) (∅ : NameSet)
 
   -- Collect constants used by proof
   (_, s) := ((CollectUsed.collect constName).run env).run s
-  let valueUsed := NameSet.ofArray s.used
+  let valueUsed := s.used.foldl (·.insert ·) (∅ : NameSet)
 
-  return (typeUsed, valueUsed \ typeUsed.erase ``sorryAx)
+  return (typeUsed, (typeUsed.erase ``sorryAx).fold (·.erase ·) valueUsed)
 
 end BlueprintGen

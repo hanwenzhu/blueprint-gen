@@ -167,7 +167,7 @@ def mkNode (name : Name) (cfg : Config) : CoreM Node := do
     let proof ← mkProofPart name cfg proofUsed
     return { cfg with name, statement, proof }
   else
-    let used := statementUsed ∪ proofUsed
+    let used := statementUsed ++ proofUsed
     let statement ← mkStatementPart name cfg .false used
     return { cfg with name, statement, proof := none }
 

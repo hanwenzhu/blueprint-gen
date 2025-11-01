@@ -25,7 +25,7 @@ initialize proofDocStringExt : SimplePersistentEnvExtension Entry State ←
   registerSimplePersistentEnvExtension {
     addEntryFn := addEntryFn
     addImportedFn := fun es => mkStateFromImportedEntries addEntryFn {} es |>.switch
-    asyncMode := .async .asyncEnv
+    asyncMode := .async
   }
 
 end ProofDocString
@@ -33,10 +33,10 @@ end ProofDocString
 open ProofDocString
 
 def addProofDocString (env : Environment) (name : Name) (doc : String) : Environment :=
-  proofDocStringExt.addEntry (asyncDecl := name) env (name, doc)
+  proofDocStringExt.addEntry env (name, doc)
 
 def getProofDocString (env : Environment) (name : Name) : Array String :=
-  proofDocStringExt.getState (asyncDecl := name) env |>.findD name #[]
+  proofDocStringExt.findStateAsync env name |>.findD name #[]
 
 elab (name := tacticDocComment) docComment:docComment t:tactic : tactic => do
   let some name ← Term.getDeclName? | throwError "could not get declaration name"

@@ -85,7 +85,7 @@ def tryResolveConst (id : Ident) : CoreM Name := do
       -- logNamedWarningAt id lean.unknownIdentifier ex.toMessageData
       return id.getId
     else
-      throwNamedErrorAt id lean.unknownIdentifier
+      throwErrorAt id
         "{ex.toMessageData}\n\nThis error can be disabled by `set_option blueprint.ignoreUnknownConstants true`."
 
 end ResolveConst
