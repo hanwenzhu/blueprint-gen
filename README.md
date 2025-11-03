@@ -144,10 +144,26 @@ To view the generated blueprint data of a node, use `@[blueprint?]`.
 The Markdown [docstrings](https://leanprover-community.github.io/contribute/doc.html) will be automatically parsed and converted to LaTeX.
 Citations are supported using square brackets like `[wiles1995]`, and references to other Lean nodes can be done by inline code like `` `Lean.theorem_name` ``. The output can be modified by the options `blueprint.bracketedCitations`, `blueprint.refCommand` and `blueprint.citeCommand`. Raw LaTeX is also supported.
 
-## Informal-only nodes
+## Mixing informal and formal blueprints
 
-At the start of a project, it is possible to have theorems or definitions in the blueprint, whose statements are not formalized in Lean.
-For these "informal-only nodes" without formal statements, you can write them in the LaTeX blueprint only, and for Lean theorems to reference the informal theorem (say with label `\label{thm}`), you may write `sorry_using ["thm"]`, `@[blueprint (uses := ["thm"])]`, etc.
+Especially at the start of a project, theorems or definitions may be written in LaTeX, and their statements are not ready to be formalized in Lean.
+Blueprint-gen supports mixing such *informal* nodes written in LaTeX with *formal* nodes written in Lean. Typically, the workflow of an entire project may look like this:
+
+1. Write a blueprint in LaTeX/Overleaf
+2. Set up a new Lean project with this blueprint
+3. Formalize a theorem `my_theorem` from LaTeX into Lean, and tag it with `@[blueprint]`
+4. Replace this theorem in LaTeX with `\inputleannode{my_theorem}`, and return to (3)
+
+One utility script for automating this replacement is (although you may prefer to do this manually):
+
+```sh
+# Convert from a LaTeX node that has a Lean corresponding part (i.e. with `\lean`)
+# to a `\inputleannode` command, and try to automatically tag the Lean part with
+# `@[blueprint]`.
+lake script run blueprintConvert --nodes <Lean name of node>
+```
+
+One specific case to note is when Lean theorems need to reference a informal theorem (say with label `\label{thm}`). Here, you may write the label in double quotes, such as `sorry_using ["thm"]` or `@[blueprint (uses := ["thm"])]`.
 
 ## Converting from existing blueprint format
 
