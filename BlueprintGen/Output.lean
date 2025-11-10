@@ -370,8 +370,10 @@ def outputJsonResults (basePath : System.FilePath) (module : Name) (json : Json)
 /-- Write to an appropriate index tex file that \inputs all modules in a library. -/
 def outputLibraryLatex (basePath : System.FilePath) (library : Name) (modules : Array Name) : IO Unit := do
   FS.createDirAll basePath
+  -- Windows prints filepaths using backslashes (\) instead of forward slashes (/).
+  -- Latex interprets these as control sequences, so we replace backslashes with forward slashes.
   let latex : Latex := "\n\n".intercalate
-    (modules.map fun mod => "\\input{" ++ (basePath / moduleToRelPath mod "tex").toString ++ "}").toList
+    (modules.map fun mod => "\\input{" ++ ((basePath / moduleToRelPath mod "tex").toString.replace "\\" "/") ++ "}").toList
   let filePath := basePath / libraryToRelPath library "tex"
   if let some d := filePath.parent then
     FS.createDirAll d
