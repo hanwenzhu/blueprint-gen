@@ -14,11 +14,14 @@ def runSingleCmd (p : Parsed) : IO UInt32 := do
   let baseDir := outputBaseDir buildDir
   let module := p.positionalArg! "module" |>.as! String |>.toName
   let isJson := p.hasFlag "json"
+  let options : LeanOptions ← match p.flag? "options" with
+    | some o => IO.ofExcept (Json.parse (o.as! String) >>= fromJson?)
+    | none => pure (∅ : LeanOptions)
   if isJson then
-    let json ← jsonOfImportModule module
+    let json ← jsonOfImportModule module options.toOptions
     outputJsonResults baseDir module json
   else
-    let latex ← latexOfImportModule module
+    let latex ← latexOfImportModule module options.toOptions
     outputLatexResults baseDir module latex
   return 0
 
@@ -43,6 +46,7 @@ def singleCmd := `[Cli|
   FLAGS:
     j, json; "Output JSON instead of LaTeX."
     b, build : String; "Build directory."
+    o, options : String; "LeanOptions in JSON to pass to running the module."
 
   ARGS:
     module : String; "The module to generate the blueprint for."

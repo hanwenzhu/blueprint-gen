@@ -30,12 +30,13 @@ module_facet blueprint (mod : Module) : Unit := do
   let modJob ← mod.leanArts.fetch
   let buildDir := (← getRootPackage).buildDir
   let latexFile := mod.filePath (buildDir / "blueprint" / "module") "tex"
+  let leanOptions := Lean.toJson mod.leanOptions |>.compress
   exeJob.bindM fun exeFile => do
     modJob.mapM fun _ => do
       buildFileUnlessUpToDate' latexFile do
         proc {
           cmd := exeFile.toString
-          args := #["single", "--build", buildDir.toString, mod.name.toString]
+          args := #["single", "--build", buildDir.toString, "--options", leanOptions, mod.name.toString]
           env := ← getAugmentedEnv
         }
 
@@ -45,12 +46,13 @@ module_facet blueprintJson (mod : Module) : Unit := do
   let modJob ← mod.leanArts.fetch
   let buildDir := (← getRootPackage).buildDir
   let latexFile := mod.filePath (buildDir / "blueprint" / "module") "json"
+  let leanOptions := Lean.toJson mod.leanOptions |>.compress
   exeJob.bindM fun exeFile => do
     modJob.mapM fun _ => do
       buildFileUnlessUpToDate' latexFile do
         proc {
           cmd := exeFile.toString
-          args := #["single", "--json", "--build", buildDir.toString, mod.name.toString]
+          args := #["single", "--json", "--build", buildDir.toString, "--options", leanOptions, mod.name.toString]
           env := ← getAugmentedEnv
         }
 
