@@ -42,22 +42,26 @@ However, AFAIK it currently does not support citations in docstrings.
 
 register_option blueprint.bracketedCitations : Bool := {
   defValue := true,
-  descr := "Whether to register square-bracketed content as citations (e.g. `[taylorwiles]`)."
+  descr := "Whether to register square-bracketed content as citations (e.g. `[taylorwiles]`). \
+            You should set this in the `leanOptions` field of the lakefile."
 }
 
 register_option blueprint.refCommand : String := {
   defValue := "ref",
-  descr := "The LaTeX command to use for references (e.g. `ref` or `cref`)."
+  descr := "The LaTeX command to use for references (e.g. `ref` or `cref`). \
+            You should set this in the `leanOptions` field of the lakefile."
 }
 
 register_option blueprint.citeCommand : String := {
   defValue := "cite",
-  descr := "The LaTeX command to use for citations (e.g. `cite` or `citep`)."
+  descr := "The LaTeX command to use for citations (e.g. `cite` or `citep`). \
+            You should set this in the `leanOptions` field of the lakefile."
 }
 
 register_option blueprint.resolveInlineCode : Bool := {
   defValue := true,
-  descr := "Whether to try to resolve inline code to references (e.g. `abc` to `\ref{abc}`)."
+  descr := "Whether to try to resolve inline code to references (e.g. `abc` to `\\ref{abc}`). \
+            You should set this in the `leanOptions` field of the lakefile."
 }
 
 variable {m} [Monad m] [MonadOptions m]
