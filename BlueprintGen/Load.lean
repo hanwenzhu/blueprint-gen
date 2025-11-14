@@ -15,18 +15,15 @@ def envOfImports (imports : Array Name) : IO Environment := do
   unsafe Lean.enableInitializersExecution
   importModules (imports.map (Import.mk · false true false)) Options.empty (leakEnv := true) (loadExts := true)
 
-/-- This is copied from `DocGen4.load`. -/
-def runEnvOfImports (imports : Array Name) (x : CoreM α) : IO α := do
+/-- This is copied from `DocGen4.load`, except for separate handling of `options`. -/
+def runEnvOfImports (imports : Array Name) (options : Options) (x : CoreM α) : IO α := do
   initSearchPath (← findSysroot)
   let env ← envOfImports imports
   let config := {
     maxHeartbeats := 100000000,
-    options := ⟨[
-      (`pp.tagAppFns, true),
-      (`pp.funBinderTypes, true),
-      (`debug.skipKernelTC, true),
-      (`Elab.async, false)
-    ]⟩,
+    options := options
+      |>.set `debug.skipKernelTC true
+      |>.set `Elab.async false,
     fileName := default,
     fileMap := default,
   }
@@ -34,11 +31,11 @@ def runEnvOfImports (imports : Array Name) (x : CoreM α) : IO α := do
   Prod.fst <$> x.toIO config { env }
 
 /-- Outputs the blueprint of a module. -/
-def latexOfImportModule (module : Name) : IO Latex :=
-  runEnvOfImports #[module] (moduleToLatexHeader module)
+def latexOfImportModule (module : Name) (options : Options) : IO Latex :=
+  runEnvOfImports #[module] options (moduleToLatexHeader module)
 
 /-- Outputs the JSON data for the blueprint of a module. -/
-def jsonOfImportModule (module : Name) : IO Json :=
-  runEnvOfImports #[module] (moduleToJson module)
+def jsonOfImportModule (module : Name) (options : Options) : IO Json :=
+  runEnvOfImports #[module] options (moduleToJson module)
 
 end BlueprintGen
